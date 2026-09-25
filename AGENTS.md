@@ -4,9 +4,11 @@
 
 ## 작업 시작
 
-- 구현 전 `docs/01-prd.md`, `docs/02-requirements-features.md`, `docs/08-feature-implementation-map.md`, `docs/09-db-design.md`에서 해당 기능의 계약을 확인한다. 작업 순서는 `docs/10-task-backlog.md`를 따른다.
+- 요청을 하나의 기능 ID·백로그 항목·API 또는 재현 가능한 오류 단위로 나누고, 각 단위의 완료 기준을 정한다. 여러 단위가 요청되면 범위를 임의로 줄이지 말고 순서대로 모두 처리한다. 관련 없는 기능·리팩터링은 추가하지 않는다.
+- 먼저 요청에 지정된 파일과 관련 코드만 확인한다. 문서가 필요하면 해당 기능 ID나 항목을 검색해 관련 부분만 읽는다. 전체 문서를 미리 읽거나 같은 내용을 반복해서 읽지 않는다.
+- 문서 선택 기준: 작업 순서·완료 기준은 `docs/10-task-backlog.md`, 기능 동작은 `docs/02-requirements-features.md`, API 계약은 `docs/08-feature-implementation-map.md`, 스키마는 `docs/09-db-design.md`, 기술 스택은 `docs/05-infra-stack.md`를 확인한다. 제품 범위가 불분명할 때만 `docs/01-prd.md`를 확인한다. 여러 문서 사이의 계약을 바꾸는 작업이면 관련 문서를 함께 대조한다.
 - `docs/04-review-log.md`와 `docs/11-troubleshooting-log.md`는 과거 기록이다. 현재 요구사항의 근거로 사용하지 않는다.
-- 한 번에 하나의 작은 기능을 완성하고, API·DB 계약을 바꾸면 관련 문서를 함께 수정한다.
+- API·DB 계약을 바꾸면 관련 문서를 함께 수정한다.
 
 ## MVP 범위
 

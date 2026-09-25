@@ -15,6 +15,12 @@
 - 계좌 연동과 자동 수집, Redis, Batch, 푸시, 크레딧, 상점, 아이템, 자동 분류 등 MVP 밖의 기능·의존성은 추가하지 않는다.
 - Spring Data JDBC의 집합 경계를 명확히 하고 월 통계는 명시적 쿼리로 계산한다. `UNIQUE`, `CASCADE`, 잠금은 실제 불변식이나 동시성 요구가 있을 때만 사용한다.
 
+## 구현과 검토 역할
+
+- 코드 작성·수정·리뷰 시 저장소의 `$karpathy-guidelines` 스킬(`.agents/skills/karpathy-guidelines/SKILL.md`)을 반드시 적용한다. 이 규칙은 구현 작업에서 유지한다.
+- 기능 개발을 역할로 나눌 때 `.codex/agents/backend-engineer.toml`이 구현하고 `.codex/agents/qa-engineer.toml`이 완료된 변경을 독립 검토한다. 같은 파일을 동시에 수정하지 않는다.
+- 역할 구분은 `docs/06-sprint-plan.md`의 현재 MVP 항목에만 적용한다. 예전 프로젝트의 계좌 연동·배치 중심 스프린트 절차는 가져오지 않는다.
+
 ## 검증과 보안
 
 - 변경한 동작에는 의미 있는 테스트를 추가한다. 특히 사용자별 접근, 입력 검증, 월 경계와 예산 상태 경계를 확인한다.

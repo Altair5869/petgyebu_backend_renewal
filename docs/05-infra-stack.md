@@ -19,7 +19,7 @@ PostgreSQL 16 (users, expenses, monthly_budgets)
 |---|---|---|
 | 앱 | React Native | iOS·Android 공용 앱. 화면과 반려동물 정적 에셋을 앱에서 제공한다. |
 | 백엔드 | Java 25, 안정 버전 Spring Boot 4.x, Gradle Groovy, Jar, Spring Web MVC | React Native가 호출하는 JSON REST API를 제공한다. 생성 시 선택한 Boot 버전과 Gradle Wrapper를 함께 기록한다. |
-| 인증 | 카카오·애플 OAuth 인가 코드 검증, Spring Security, 짧은 수명의 액세스 JWT | 사용자 식별에 필요한 최소 경로다. 인증된 요청마다 `users` 존재를 확인한다. |
+| 인증 | 카카오·구글 OAuth 인가 코드 검증, Spring Security, 짧은 수명의 액세스 JWT | 사용자 식별에 필요한 최소 경로다. 인증된 요청마다 `users` 존재를 확인한다. |
 | 데이터 | PostgreSQL 16, Spring Data JDBC | 세 테이블을 독립된 집합으로 다루고 월 통계는 명시적 SQL로 집계한다. JPA·QueryDSL은 사용하지 않는다. |
 | 스키마 | Flyway 및 PostgreSQL용 Flyway 모듈 | 새 프로젝트의 첫 마이그레이션에서 3테이블을 생성한다. 앱 코드가 스키마를 자동 생성하지 않는다. |
 | 설정 | `application.yaml`, 환경 변수 | 한 가지 파일 형식으로 통일하고 비밀값은 환경 변수로 주입한다. |

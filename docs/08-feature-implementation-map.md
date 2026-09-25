@@ -8,7 +8,7 @@
 
 | # | 기능 | 메서드 | 경로 | 요청·응답 핵심 | 테이블 |
 |---:|---|---|---|---|---|
-| 1 | F-M01 | POST | `/api/v1/auth/login/{provider}` | `provider=kakao|apple`, 인가 코드 → 액세스 토큰·신규 여부 | `users` |
+| 1 | F-M01 | POST | `/api/v1/auth/login/{provider}` | `provider=kakao|google`, 인가 코드 → 액세스 토큰·신규 여부 | `users` |
 | 2 | F-M01 | GET | `/api/v1/users/me` | 공급자, 사용자 ID, 반려동물 종류 | `users` |
 | 3 | F-M01 | DELETE | `/api/v1/users/me` | 사용자와 종속 지출·예산 삭제 → 204 | 3개 |
 | 4 | F-M02 | PUT | `/api/v1/users/me/pet` | `petType=CAT|DOG` → 선택 종류 | `users` |

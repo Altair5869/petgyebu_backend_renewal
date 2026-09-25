@@ -1,0 +1,3 @@
+spring:
+  application:
+    name: petgyebu_backend_renewal

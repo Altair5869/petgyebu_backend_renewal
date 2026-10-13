@@ -3,7 +3,7 @@
 - 갱신: 2026-10-11
 - 기준: [리뉴얼 개발 기준](00-renewal-development-guide.md), [기능명세](02-requirements-features.md), [구현 맵](08-feature-implementation-map.md)
 - 대상: PostgreSQL 16, Spring Data JDBC, Flyway
-- 상태: 새 빈 DB에 적용할 논리 설계와 기준선 DDL 예시. 현재 저장소에 마이그레이션이 적용됐다는 뜻은 아니다.
+- 상태: 새 빈 DB에 적용할 논리 설계와 기준선 DDL. 3절 DDL은 `src/main/resources/db/migration/V1__baseline.sql`로 적용했다(`M-002`).
 
 ## 1. 관계·소유권·저장 범위
 

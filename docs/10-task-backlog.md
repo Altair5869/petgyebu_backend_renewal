@@ -27,6 +27,8 @@
 
 > `M-002` 검증 기록 (2026-10-13): `V1__baseline.sql`이 빈 PostgreSQL 16(Testcontainers)에 `users`, `expenses`, `monthly_budgets`만 만든다. `FlywayBaselineSchemaTests`로 컬럼 타입·NULL 허용, `UNIQUE(provider, provider_user_id)`·`UNIQUE(user_id, budget_month)`, 없는 사용자 FK 거부, 사용자 삭제 시 CASCADE 없음, DB `CHECK` 없음, 중복 지출 허용, `(user_id, expense_date DESC, id DESC)` 인덱스를 검증했다. `./gradlew test --no-daemon` 통과(테스트 10개, 실패 0개).
 
+> `M-003` 진행 기록 (2026-10-13): 로그인·갱신·로그아웃 API, HS256 액세스 토큰(15분, 세션 ID 포함), 해시 저장 리프레시 토큰(마지막 사용 후 30일, 갱신 시 교체), 한 활성 로그인, Bearer 인증 필터와 공통 오류 응답을 구현했다. 공급자 확인은 `SocialIdentityVerifier` 뒤에 있으며 운영 구현은 연동 전까지 `503 SOCIAL_LOGIN_UNAVAILABLE`을 반환한다. 테스트는 가짜 verifier로 검증했다. `./gradlew test --no-daemon` 통과(테스트 42개, 실패 0개). 실제 카카오·구글 연동 전이므로 완료 표시하지 않는다.
+
 ## Sprint 1 — 펫 선택·수동 지출
 
 | ID | 작업과 완료 기준 | 의존 | 상태 |

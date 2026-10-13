@@ -69,6 +69,9 @@ class AuthApiTests {
         mvc.perform(post("/api/v1/auth/login/kakao").contentType(MediaType.APPLICATION_JSON).content("{"))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        mvc.perform(post("/api/v1/auth/login/kakao").contentType(MediaType.APPLICATION_JSON))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
         mvc.perform(post("/api/v1/auth/login/kakao").contentType(MediaType.TEXT_PLAIN).content("x"))
                 .andExpect(status().is4xxClientError())
                 .andExpect(status().is(not(401)));

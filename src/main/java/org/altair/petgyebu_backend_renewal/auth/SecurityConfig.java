@@ -50,8 +50,7 @@ public class SecurityConfig {
                 .logout(AbstractHttpConfigurer::disable)
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authorize -> authorize
-                        .requestMatchers(HttpMethod.POST,
-                                "/api/v1/auth/login/*", "/api/v1/auth/refresh", "/api/v1/auth/logout").permitAll()
+                        .requestMatchers(PUBLIC_AUTH_POSTS).permitAll()
                         .requestMatchers("/error").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(resourceServer -> resourceServer

@@ -161,6 +161,36 @@ class AuthApiTests {
         expectUnauthorized(me(access));
     }
 
+    @Test
+    void publicAuthEndpointsIgnoreExpiredBearerHeader() throws Exception {
+        String body = login("kakao", "ok:k1").andReturn().getResponse().getContentAsString();
+        String staleAccess = JsonPath.read(body, "$.accessToken");
+        clock.advance(Duration.ofMinutes(16));
+        String bearer = "Bearer " + staleAccess;
+
+        mvc.perform(post("/api/v1/auth/login/kakao").header("Authorization", bearer)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"credential\":\"ok:k1\"}"))
+                .andExpect(status().isOk());
+        String fresh = JsonPath.read(login("kakao", "ok:k1").andReturn().getResponse().getContentAsString(),
+                "$.refreshToken");
+        mvc.perform(post("/api/v1/auth/refresh").header("Authorization", bearer)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"refreshToken\":\"" + fresh + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.refreshToken").isString());
+    }
+
+    @Test
+    void logoutIgnoresExpiredBearerHeader() throws Exception {
+        String body = login("kakao", "ok:k1").andReturn().getResponse().getContentAsString();
+        String staleAccess = JsonPath.read(body, "$.accessToken");
+        String refreshToken = JsonPath.read(body, "$.refreshToken");
+        clock.advance(Duration.ofMinutes(16));
+
+        mvc.perform(post("/api/v1/auth/logout").header("Authorization", "Bearer " + staleAccess)
+                        .contentType(MediaType.APPLICATION_JSON).content("{\"refreshToken\":\"" + refreshToken + "\"}"))
+                .andExpect(status().isNoContent());
+    }
+
     private ResultActions login(String provider, String credential) throws Exception {
         return mvc.perform(post("/api/v1/auth/login/" + provider)
                 .contentType(MediaType.APPLICATION_JSON)

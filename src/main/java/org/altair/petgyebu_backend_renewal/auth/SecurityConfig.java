@@ -11,7 +11,12 @@ import org.springframework.security.config.annotation.web.configurers.AbstractHt
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+import org.springframework.security.web.util.matcher.RequestMatcher;
 
 @Configuration(proxyBeanMethods = false)
 public class SecurityConfig {
@@ -23,6 +28,17 @@ public class SecurityConfig {
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.getWriter().write("{\"code\":\"UNAUTHORIZED\",\"message\":\"인증이 필요합니다.\"}");
     };
+
+    // 인증 없이 호출하는 세 경로는 만료·무효 Bearer 헤더가 붙어 와도 토큰 검증을 시도하지 않는다.
+    private static final RequestMatcher PUBLIC_AUTH_POSTS = new OrRequestMatcher(
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/v1/auth/login/*"),
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/v1/auth/refresh"),
+            PathPatternRequestMatcher.withDefaults().matcher(HttpMethod.POST, "/api/v1/auth/logout"));
+
+    private static BearerTokenResolver bearerTokenResolver() {
+        DefaultBearerTokenResolver delegate = new DefaultBearerTokenResolver();
+        return request -> PUBLIC_AUTH_POSTS.matches(request) ? null : delegate.resolve(request);
+    }
 
     @Bean
     SecurityFilterChain apiSecurity(HttpSecurity http, JwtDecoder jwtDecoder,
@@ -40,6 +56,7 @@ public class SecurityConfig {
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(resourceServer -> resourceServer
                         .jwt(jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(sessionCheckingJwtConverter))
+                        .bearerTokenResolver(bearerTokenResolver())
                         .authenticationEntryPoint(UNAUTHORIZED_JSON))
                 .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(UNAUTHORIZED_JSON));
         return http.build();

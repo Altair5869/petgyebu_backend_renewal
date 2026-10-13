@@ -38,3 +38,6 @@ out/
 
 # Personal sharing artifact
 /docs/petgyebu-mvp-erd.pdf
+
+### macOS ###
+.DS_Store

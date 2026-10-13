@@ -1,41 +1,67 @@
-# 인프라·기술 스택: Petgyebu MVP
+# 인프라·기술 스택: Petgyebu 리뉴얼 MVP
 
-- 기준일: 2026-09-25
-- 과거 의사결정 근거는 `sources/05-infra-stack.md`와 `04-review-log.md`에 보존한다. 아래는 새 프로젝트의 MVP 구성이다.
+- 갱신: 2026-10-11
+- 기준: [리뉴얼 개발 기준](00-renewal-development-guide.md), 저장소의 `build.gradle`·`AGENTS.md`
+- 상태: 현재 저장소의 기술 구성과 MVP 구현 기준. 배포 완료 상태를 뜻하지 않는다.
 
-## 구성
+## 1. 구성과 책임
 
 ```text
-React Native 모바일 앱 (iOS·Android)
-    │ HTTPS
+React Native 앱
+    │ HTTPS · JSON
     ▼
-Spring Web MVC JSON API (Java 25, Gradle, Spring Security)
-    │ Spring Data JDBC + Flyway
+Spring Boot API (Java 25 · Spring Web MVC · Spring Security)
+    │ Spring Data JDBC · 명시적 월 집계 쿼리 · Flyway
     ▼
-PostgreSQL 16 (users, expenses, monthly_budgets)
+PostgreSQL 16 (users · expenses · monthly_budgets)
 ```
 
-| 영역 | MVP 선택 | 이유 |
+앱은 사용자 입력, 펫 이미지·표정, 화면 이동과 목록 이어보기를 담당한다. 서버는 인증, 사용자 범위의 데이터 접근, 입력 검증, 월 합계와 상태 계산을 담당한다. PostgreSQL의 지출 내역과 월 예산이 원본 데이터다. 같은 계산 규칙을 홈과 상세 통계에 사용한다.
+
+| 영역 | 현재 기준 | 적용 상태·근거 |
 |---|---|---|
-| 앱 | React Native | iOS·Android 공용 앱. 화면과 반려동물 정적 에셋을 앱에서 제공한다. |
-| 백엔드 | Java 25, 안정 버전 Spring Boot 4.x, Gradle Groovy, Jar, Spring Web MVC | React Native가 호출하는 JSON REST API를 제공한다. 생성 시 선택한 Boot 버전과 Gradle Wrapper를 함께 기록한다. |
-| 인증 | 카카오·구글 OAuth 인가 코드 검증, Spring Security, 짧은 수명의 액세스 JWT | 사용자 식별에 필요한 최소 경로다. 인증된 요청마다 `users` 존재를 확인한다. |
-| 데이터 | PostgreSQL 16, Spring Data JDBC | 세 테이블을 독립된 집합으로 다루고 월 통계는 명시적 SQL로 집계한다. JPA·QueryDSL은 사용하지 않는다. |
-| 스키마 | Flyway 및 PostgreSQL용 Flyway 모듈 | 새 프로젝트의 첫 마이그레이션에서 3테이블을 생성한다. 앱 코드가 스키마를 자동 생성하지 않는다. |
-| 설정 | `application.yaml`, 환경 변수 | 한 가지 파일 형식으로 통일하고 비밀값은 환경 변수로 주입한다. |
-| 배포 | Google Cloud Run + Cloud SQL | 배포 시 구성한다. 예약 작업이 없으므로 상시 CPU·최소 인스턴스는 필수가 아니다. 실제 비용과 트래픽으로 설정한다. |
-| 시간 | `Asia/Seoul` | 지출 날짜와 월 경계를 통일한다. |
+| 앱 | React Native | 백엔드가 연결될 별도 앱 프로젝트. 현재 저장소에는 앱 코드가 없다. 펫 연출의 에셋 형식·렌더링 방식은 이 문서에서 고정하지 않는다. |
+| 백엔드 | Java 25, Spring Boot 4.1.1, Gradle Groovy, Spring Web MVC | `build.gradle`과 `AGENTS.md`에 명시된 현재 프로젝트 구성 |
+| 인증 | Spring Security, 카카오·구글 로그인, 서버 자체 액세스·리프레시 토큰 | Security 의존성은 존재한다. 소셜 연동과 토큰 발급·갱신은 구현 대상이다. 토큰의 내부 형식이나 추가 라이브러리는 현 단계에서 확정하지 않는다. |
+| 데이터 접근 | Spring Data JDBC, PostgreSQL 16 | JDBC 의존성이 있다. 사용자·월 집계는 명시적 쿼리로 계산한다. JPA·QueryDSL은 도입하지 않는다. |
+| 스키마 | Flyway, PostgreSQL용 Flyway 모듈 | 의존성이 있다. 세 논리 테이블과 제약·인덱스는 마이그레이션으로 관리한다. 앱 실행 시 자동 스키마 생성에 맡기지 않는다. |
+| 설정·비밀값 | `application.yaml`, 환경 변수 | 설정 파일은 저장소에 있다. DB 접속 정보·토큰 서명 키·소셜 인증 비밀값은 소스와 로그에 남기지 않는다. |
+| 테스트 | JUnit, Spring Boot 테스트, PostgreSQL Testcontainers | 현재 테스트 의존성이 있다. DB 계약을 검증하는 통합 테스트는 Docker의 PostgreSQL을 사용한다. |
+| 배포 계획 | Google Cloud Run + Cloud SQL | 기존 문서의 배포 대상이다. 실제 서비스 생성, 요금·용량·네트워크 설정은 배포 시 검증한다. 현재 구성만으로 배포 완료를 뜻하지 않는다. |
+| 시간 기준 | `Asia/Seoul` | ‘오늘’, 지출 날짜, 월 시작과 다음 달 시작을 동일하게 해석한다. |
 
-백엔드 초기 의존성은 Spring Web MVC, Validation, Spring Data JDBC, PostgreSQL Driver, Flyway와 PostgreSQL용 Flyway 모듈, Spring Security다. 소셜 로그인 구현 방식이 확정되면 필요한 OAuth2·JWT 라이브러리를 추가한다. React Native는 별도 앱 프로젝트의 의존성을 관리한다.
+## 2. 인증과 세션
 
-## 구현 원칙
+카카오·구글 로그인 뒤 서버가 자체 액세스·리프레시 토큰을 발급한다. 액세스 토큰은 15분, 리프레시 토큰은 마지막 사용 후 30일 유효하다. 갱신할 때 두 토큰을 새로 발급하고 이전 리프레시 토큰은 무효화한다. 공급자별 인가 코드 전달 방식과 앱인토스 연동 상세는 출시 플랫폼 절차를 확인한 뒤 정한다.
 
-- 월 통계는 `expenses`에서 사용자 ID와 날짜 범위 `[월 첫날, 다음 달 첫날)`로 집계한다. 저장된 집계, 캐시, 야간 배치는 없다.
-- 상태와 성장은 조회 시 계산한다. 상태 기준은 `01-prd.md`의 70%·100% 경계이며 별도 임계값 테이블은 없다.
-- Cloud SQL 연결 정보·JWT 서명 키·소셜 인증 비밀값은 Secret Manager 또는 배포 환경의 비밀 설정으로 관리한다. 소스와 로그에 남기지 않는다.
-- 로컬·CI 통합 테스트는 Docker의 PostgreSQL Testcontainers를 사용해 Flyway와 실제 제약을 확인한다. 새 프로젝트는 빈 DB에서 시작하며 과거 17테이블 마이그레이션을 복사하지 않는다.
-- 과거 계정·예산 코드를 참고하더라도 새 계약에 맞는 부분만 옮긴다. 과거 완료 기록으로 새 MVP 작업을 완료 처리하지 않는다.
+한 계정에는 활성 로그인 하나만 둔다. 새 로그인은 기존 로그인을 무효화한다. `users.active_session_id`는 로그인 식별자이며 기기 ID가 아니다. 인증 요청은 액세스 토큰의 세션 ID를 현재 사용자 값과 비교해 종료된 로그인을 거부한다. DB에는 원본 리프레시 토큰 대신 해시와 만료 시각을 저장한다. `last_login_time`은 소셜 로그인 성공 시 갱신한다. `device_id`는 MVP에 저장하지 않는다.
 
-## 제외하는 구성
+로그아웃은 서버의 현재 로그인을 무효화하고 앱이 보관한 토큰을 지운다. 회원 탈퇴는 지출 → 월 예산 → 사용자 순으로 한 DB 트랜잭션에서 명시적으로 삭제한다. 외래 키는 유지하되 `ON DELETE CASCADE`를 사용하지 않는다.
 
-Redis, ShedLock, Spring Batch, CODEF SDK, 금융결제원 연동, Resilience4j 금융 API 재시도, JPA, QueryDSL, FCM, 캐릭터 에셋용 서버 스토리지·CDN, 웹 앱은 MVP 런타임·의존성에서 제외한다. 반려동물 정적 에셋은 React Native 앱에 포함한다. `SELECT FOR UPDATE`가 필요한 잔액 차감 흐름도 없다.
+## 3. 데이터와 계산
+
+논리 테이블은 `users`, `expenses`, `monthly_budgets` 세 개다. 별도 펫·세션·월 집계 테이블은 두지 않는다. `users`에는 펫 종류와 현재 로그인 정보가, `expenses`에는 수동 지출이, `monthly_budgets`에는 사용자별 월 예산이 들어간다. 월 예산은 API의 `YYYY-MM`을 해당 월 첫날의 `DATE`로 바꿔 저장한다.
+
+DB에는 합의한 `NOT NULL`, 외래 키, `UNIQUE(provider, provider_user_id)`, `UNIQUE(user_id, budget_month)`를 둔다. 지출 목록의 날짜·ID 역순 조회를 위해 `(user_id, expense_date DESC, id DESC)` 인덱스를 둔다. 동일 사용자·월 예산의 동시 PUT은 한 행만 남기는 upsert로 처리한다. 금액 양수, 카테고리 일곱 가지, 예산 월 첫날 정규화는 애플리케이션에서 검증하고 DB `CHECK`는 두지 않는다. 직접 DB 변경은 이 검증을 우회하므로 마이그레이션·운영 절차에서 별도 확인한다.
+
+월 합계는 사용자와 `Asia/Seoul` 월 범위 `[첫날, 다음 달 첫날)`에 속한 지출을 DB에서 계산한다. 예산 잔액은 `budgetAmount - spentAmount`의 부호를 유지한다. 사용률 표시값은 소수 첫째 자리에서 버리고, 펫 상태는 버리기 전 실제 비율로 판정한다. 펫 상태는 현재 월에만 계산한다. 과거 월에는 펫 데이터가 없으며 예산 없는 과거 월은 예산 관련 값만 `null`이다. 카테고리 비중은 소수 첫째 자리 반올림이다. 정확한 필드와 경계는 개발 기준을 따른다.
+
+## 4. 월 합계 캐시 실험
+
+1. DB 원본 조회로 홈·통계의 월 합계를 먼저 정확하게 구현하고 실제 성능을 측정한다.
+2. 병목이 확인되면 **사용자·월별 지출 합계만** 캐시하는 실험을 한다. 홈 응답 전체나 펫 상태를 캐시하지 않는다.
+3. 지출 생성·수정·삭제가 DB에 확정된 뒤 영향받은 월의 캐시를 무효화한다. 날짜가 다른 월로 바뀌면 이전 월과 새 월을 모두 무효화한다. 예산 변경은 지출 합계 캐시를 지울 필요가 없다.
+4. 캐시 장애 시 DB 조회로 동작한다. 성능 개선과 동시 변경 시 최신성을 검증한 후 출시 적용 여부를 정한다. 구현 제품·TTL·키 포맷은 그때 결정한다.
+
+따라서 현재 기본 런타임에는 Redis 등 캐시 서비스가 필요하지 않다. 캐시는 출시 필수 조건이 아니다. 저장된 월 집계 테이블, 스냅샷, 비동기 이벤트 집계, 월 전환 배치도 MVP에 포함하지 않는다.
+
+## 5. 로컬 개발·검증·배포
+
+- 빈 PostgreSQL에 Flyway 마이그레이션을 적용해 시작한다. 이전 프로젝트의 17개 테이블과 계좌 연동 마이그레이션을 복사하지 않는다.
+- 로컬·CI에서 `./gradlew test --no-daemon`으로 테스트한다. 사용자별 접근, 입력 검증, 서울 시간대의 월 경계, 50%·80%·100% 상태 경계, 예산 upsert·탈퇴 트랜잭션을 검증한다.
+- Cloud Run·Cloud SQL 배포를 진행할 때 DB 접속 정보·토큰 서명 키·소셜 인증 비밀값을 Secret Manager 또는 배포 환경의 비밀 설정으로 주입한다. 예약 작업이 없다는 가정 아래 인스턴스·CPU·비용 설정은 실제 트래픽에 맞춰 정한다.
+- 계좌 연동, CODEF·금융결제원 SDK, Spring Batch·ShedLock, 금융 API 재시도, FCM, 보상·상점용 저장소는 MVP 구성에 넣지 않는다. 앱의 펫 연출 에셋을 위한 서버 스토리지·CDN도 현재 필수 구성으로 두지 않는다.
+
+## 6. 후속 확인
+
+앱인토스에 맞춘 카카오·구글 인증 연동 상세와 캐시의 출시 적용·구현 제품은 [개발 기준의 후속 결정](00-renewal-development-guide.md)으로 남긴다. 이 문서의 배포 계획은 인프라 선택을 기록한 것이며, 계정·네트워크·비용을 검증해 실제 배포할 때 운영 설정을 확정한다.

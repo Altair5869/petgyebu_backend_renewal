@@ -1,0 +1,4 @@
+# 테스트 전용 값. 운영 비밀값이 아니다.
+petgyebu:
+  jwt:
+    secret: test-only-jwt-secret-not-for-production-use

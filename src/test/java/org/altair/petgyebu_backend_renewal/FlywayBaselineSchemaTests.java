@@ -47,13 +47,13 @@ class FlywayBaselineSchemaTests {
     void columnsMatchDesignedTypesAndNullability() {
         assertThat(columns("users")).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "id", "bigint NO",
-                "provider", "character varying NO",
-                "provider_user_id", "character varying NO",
-                "pet_type", "character varying YES",
+                "provider", "character varying(10) NO",
+                "provider_user_id", "character varying(255) NO",
+                "pet_type", "character varying(10) YES",
                 "created_at", "timestamp with time zone NO",
                 "last_login_time", "timestamp with time zone NO",
                 "active_session_id", "uuid YES",
-                "refresh_token_hash", "character varying YES",
+                "refresh_token_hash", "character varying(255) YES",
                 "refresh_token_expires_at", "timestamp with time zone YES"));
 
         assertThat(columns("expenses")).containsExactlyInAnyOrderEntriesOf(Map.of(
@@ -61,7 +61,7 @@ class FlywayBaselineSchemaTests {
                 "user_id", "bigint NO",
                 "amount", "bigint NO",
                 "expense_date", "date NO",
-                "category", "character varying NO",
+                "category", "character varying(20) NO",
                 "memo", "text YES",
                 "created_at", "timestamp with time zone NO",
                 "updated_at", "timestamp with time zone NO"));
@@ -79,6 +79,7 @@ class FlywayBaselineSchemaTests {
     void rejectsDuplicateProviderIdentity() {
         insertUser("KAKAO", "same-id");
         insertUser("GOOGLE", "same-id");
+        insertUser("KAKAO", "other-id");
 
         assertThatThrownBy(() -> insertUser("KAKAO", "same-id"))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -89,6 +90,7 @@ class FlywayBaselineSchemaTests {
         long userId = insertUser("KAKAO", "u1");
         insertBudget(userId, "2026-10-01");
         insertBudget(userId, "2026-11-01");
+        insertBudget(insertUser("KAKAO", "u2"), "2026-10-01");
 
         assertThatThrownBy(() -> insertBudget(userId, "2026-10-01"))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -146,13 +148,14 @@ class FlywayBaselineSchemaTests {
 
     private Map<String, String> columns(String table) {
         return jdbc.query("""
-                SELECT column_name, data_type, is_nullable FROM information_schema.columns
+                SELECT column_name, data_type, character_maximum_length, is_nullable FROM information_schema.columns
                 WHERE table_schema = 'public' AND table_name = ?
                 """, rs -> {
             Map<String, String> result = new HashMap<>();
             while (rs.next()) {
-                result.put(rs.getString("column_name"),
-                        rs.getString("data_type") + " " + rs.getString("is_nullable"));
+                String length = rs.getString("character_maximum_length");
+                result.put(rs.getString("column_name"), rs.getString("data_type")
+                        + (length == null ? "" : "(" + length + ")") + " " + rs.getString("is_nullable"));
             }
             return result;
         }, table);

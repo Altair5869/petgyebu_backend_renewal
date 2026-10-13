@@ -25,7 +25,7 @@
 
 > `M-001` 검증 기록 (2026-10-11): `build.gradle`의 Java 25·Spring Boot 4.1.1·Gradle Wrapper 9.7.1, Spring Web MVC·Data JDBC·PostgreSQL·Flyway·Testcontainers 의존성과 `application.yaml`의 앱 이름을 `05-infra-stack.md`와 대조했다. 로컬 Java 25.0.4.1·Docker 28.5.1에서 `./gradlew test --no-daemon --rerun-tasks` 통과(테스트 1개, 실패 0개). 현재 설정 파일은 앱 이름만 담고 있으며 DB 접속은 테스트의 `@ServiceConnection`으로 제공한다. 운영 DB·토큰·소셜 비밀값 설정은 해당 기능·배포 작업에서 환경 변수로 연결한다.
 
-> `M-002` 검증 기록 (2026-10-13): `V1__baseline.sql`이 빈 PostgreSQL 16(Testcontainers)에 `users`, `expenses`, `monthly_budgets`만 만든다. `FlywayBaselineSchemaTests`로 컬럼 타입·NULL 허용, `UNIQUE(provider, provider_user_id)`·`UNIQUE(user_id, budget_month)`, 없는 사용자 FK 거부, 사용자 삭제 시 CASCADE 없음, DB `CHECK` 없음, 중복 지출 허용, `(user_id, expense_date DESC, id DESC)` 인덱스를 검증했다. `./gradlew test --no-daemon` 통과(테스트 10개, 실패 0개).
+> `M-002` 검증 기록 (2026-10-13): `V1__baseline.sql`이 빈 PostgreSQL 16(Testcontainers)에 `users`, `expenses`, `monthly_budgets`만 만든다. `FlywayBaselineSchemaTests`로 컬럼 타입(VARCHAR 길이 포함)·NULL 허용, 복합 `UNIQUE(provider, provider_user_id)`·`UNIQUE(user_id, budget_month)`(같은 공급자의 다른 ID, 다른 사용자의 같은 월은 허용), 없는 사용자 FK 거부, 사용자 삭제 시 CASCADE 없음, DB `CHECK` 없음, 중복 지출 허용, `(user_id, expense_date DESC, id DESC)` 인덱스를 검증했다. `./gradlew test --no-daemon` 통과(테스트 10개, 실패 0개).
 
 ## Sprint 1 — 펫 선택·수동 지출
 

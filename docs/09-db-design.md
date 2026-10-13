@@ -76,7 +76,7 @@ DO UPDATE SET amount = EXCLUDED.amount, updated_at = now()
 RETURNING id, user_id, budget_month, amount, created_at, updated_at;
 ```
 
-## 3. 새 기준선 DDL 예시
+## 3. 기준선 DDL (`V1__baseline.sql`)
 
 ```sql
 CREATE TABLE users (
@@ -116,7 +116,7 @@ CREATE TABLE monthly_budgets (
 );
 ```
 
-DDL 예시는 합의한 PK·NOT NULL·FK·UNIQUE·인덱스를 반영한다. 금액 양수, 카테고리·펫 종류·공급자 값, `budget_month`가 첫날인지 같은 업무 규칙을 위한 DB `CHECK`는 없다. `created_at`·`updated_at`의 기본값은 INSERT에만 작용하므로 애플리케이션은 수정 시 `updated_at`을 갱신한다. `last_login_time`은 로그인 성공 처리에서 명시적으로 기록한다.
+이 DDL은 합의한 PK·NOT NULL·FK·UNIQUE·인덱스를 반영한다. 금액 양수, 카테고리·펫 종류·공급자 값, `budget_month`가 첫날인지 같은 업무 규칙을 위한 DB `CHECK`는 없다. `created_at`·`updated_at`의 기본값은 INSERT에만 작용하므로 애플리케이션은 수정 시 `updated_at`을 갱신한다. `last_login_time`은 로그인 성공 처리에서 명시적으로 기록한다.
 
 ## 4. 집계·커서·캐시
 

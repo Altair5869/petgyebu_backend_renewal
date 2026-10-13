@@ -82,7 +82,7 @@
 
 - 카카오·구글 로그인 성공 시 서버가 자체 액세스·리프레시 토큰을 발급한다. 앱을 닫았다 열어도 로그인을 유지한다.
 - **한 계정에는 한 활성 로그인만** 둔다. 새 로그인은 이전 로그인과 토큰을 무효화한다. 액세스 토큰은 15분, 리프레시 토큰은 마지막 사용 후 30일 동안 유효하다. 30일 사용하지 않으면 소셜 로그인을 다시 한다.
-- 토큰 갱신마다 새 액세스·리프레시 토큰을 발급하고 이전 리프레시 토큰은 무효화한다. 앱은 새 토큰으로 교체한다.
+- 토큰 갱신마다 새 액세스·리프레시 토큰을 발급하고 이전 리프레시 토큰은 무효화한다. 앱은 새 토큰으로 교체한다. 같은 리프레시 토큰으로는 갱신이 한 번만 성공하므로 앱은 갱신 요청을 한 번에 하나만 보내고, 진행 중인 갱신 결과를 다른 요청이 함께 사용한다.
 - `active_session_id`는 **이번 로그인**의 식별자다. 앱 설치나 휴대폰 식별자인 `device_id`와 다르다. 액세스 토큰의 세션 ID를 현재 사용자 값과 비교해 새 로그인·로그아웃 후 이전 액세스 토큰도 거부한다.
 - `users`에는 `last_login_time`, `active_session_id`, `refresh_token_hash`, `refresh_token_expires_at`을 둔다. 원본 리프레시 토큰은 DB에 저장하지 않는다. `last_login_time`은 소셜 로그인 성공 시 갱신한다.
 - `device_id`는 MVP 테이블에 추가하지 않는다. 기기 관리·푸시의 목적과 식별 방식이 정해질 때 재검토한다.
@@ -134,6 +134,7 @@
 - 홈은 `month, petType, petState, budgetAmount, spentAmount, usagePercent, budgetBalanceAmount`를 반환한다. 카테고리·지출 목록은 포함하지 않는다.
 - 통계는 `month, budgetAmount, spentAmount, expenseCount, usagePercent, budgetBalanceAmount, categories`를 반환한다. 각 카테고리는 `category, spentAmount, expenseCount, sharePercent`를 가진다. **펫 필드는 통계에 없다.** 예산이 없는 과거 월은 `budgetAmount, usagePercent, budgetBalanceAmount`만 `null`이다.
 - 로그인과 토큰 갱신 응답은 `accessToken, refreshToken, accessExpiresInSeconds`를 반환한다. 액세스 만료 초는 `900`이다. 갱신 요청은 현재 `refreshToken`을 보낸다. 로그아웃도 현재 리프레시 토큰으로 요청한다.
+- 로그인 요청 본문은 `{credential}`이다. `credential`이 인가 코드인지 공급자 토큰인지는 앱인토스 연동 결정 전까지 잠정이며, 그 전에는 서버가 로그인을 `503 SOCIAL_LOGIN_UNAVAILABLE`로 거부한다. `{provider}`는 `kakao`·`google`이며 대소문자를 구분하지 않는다. 로그인·갱신·로그아웃 세 경로는 `Authorization` 헤더가 있어도 무시하므로 만료된 액세스 토큰으로도 갱신·로그아웃할 수 있다.
 
 ### 지출 목록과 오류
 
@@ -141,6 +142,7 @@
 - 커서는 앱이 해석하지 않는 이어보기 표식이며 발급받은 사용자·월에만 유효하다. 월을 바꾸거나 지출을 생성·수정·삭제하면 앱은 커서를 버리고 첫 페이지부터 다시 조회한다. 잘못된 형식이나 다른 월의 커서는 `400 INVALID_CURSOR`다.
 - 앱은 내 정보와 현재 월 예산을 확인한 뒤 홈으로 이동한다. 설정 전 홈 호출은 `409 PET_REQUIRED` 또는 `409 BUDGET_REQUIRED`다. 둘 다 빠졌다면 펫 선택을 먼저 안내한다.
 - 공통 오류 응답은 `code`와 `message`를 가진다. 입력 오류에는 해당 필드 정보를 추가한다. 잘못된 입력은 400, 로그인 필요·무효 토큰은 401, 없거나 다른 사용자의 지출 ID는 구분 없이 404다.
+- 인증 관련 오류 코드: 입력 오류 `400 INVALID_REQUEST`(`fields` 포함), 공급자 확인 실패 `401 SOCIAL_LOGIN_FAILED`, 토큰 없음·무효·만료·종료된 로그인 `401 UNAUTHORIZED`(사유 구분 없음), 공급자 연동 전 `503 SOCIAL_LOGIN_UNAVAILABLE`.
 - 성공 응답은 지출 생성 201, 조회·수정 200, 지출 삭제·로그아웃·탈퇴 204다. 예산 PUT은 생성·변경 모두 200이다.
 
 ## 9. 캐시 실험

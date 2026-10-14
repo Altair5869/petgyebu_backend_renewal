@@ -30,7 +30,7 @@
 - 현재 홈의 정보 순서는 **펫 상태 → 예산 잔액·사용률 → 지출 기록**이다. 지출이 0건이면 안정 상태와 첫 기록 안내를 보여준다. `GET /api/v1/home`은 현재 월 전용이다.
 - 지난달을 포함한 과거 월은 지출 합계·예산·사용률·카테고리 등 **숫자만** 보여준다. 과거 펫 이미지·표정·상태는 표시하지 않는다.
 - 월 선택기에는 현재 월과 모든 과거 월을 제공한다. 지출이 없는 달도 선택할 수 있으며 0원·0건으로 표시한다. 미래 월은 선택할 수 없다.
-- 과거 월에 예산이 없어도 지출 총액·건수·카테고리 통계는 보여준다. 예산·사용률·예산 잔액은 미설정으로 표시한다.
+- 과거 월에 예산이 없어도 지출 총액·건수·카테고리 통계는 보여준다. 예산·사용률·예산 잔액은 미설정으로 표시한다. 통계 API는 예산이 없는 현재 월도 409 없이 같은 방식으로 응답한다.
 - 예산은 **현재 월에만** 설정·수정한다. 과거 예산은 조회만 가능하고 미래 월 예산은 미리 저장하지 않는다. 과거 지출의 조회·수정·삭제는 허용한다.
 
 ### 상세 통계와 지출 내역
@@ -46,7 +46,7 @@
 
 월 경계는 `Asia/Seoul`의 `[월 첫날, 다음 달 첫날)`이다. 사용자와 월에 속한 현재 지출 레코드의 금액 합계가 `spentAmount`다. 예산은 1원 이상 1억 원(100,000,000) 이하의 원화 정수다.
 
-- `budgetBalanceAmount = budgetAmount - spentAmount`. 양수면 남은 금액, 0이면 예산 도달, 음수면 절댓값만큼 초과다. 예산이 없는 과거 월에는 `null`이다.
+- `budgetBalanceAmount = budgetAmount - spentAmount`. 양수면 남은 금액, 0이면 예산 도달, 음수면 절댓값만큼 초과다. 예산이 없는 월의 통계(현재 월 포함)에서는 `null`이다.
 - 실제 사용률은 `spentAmount / budgetAmount × 100`이다. **상태 판정은 표시값으로 반올림·절삭하기 전의 원래 비율**로 한다.
 - API의 `usagePercent`는 소수 첫째 자리에서 **버림**한 값이다. 앱은 소수부가 0이면 `.0`을 숨긴다. 따라서 실제 49.99%는 49.9%·안정, 정확히 50%는 50%·주의다.
 
@@ -132,7 +132,7 @@
 - 지출 생성·단건 조회·수정과 목록의 각 `item`은 `id, amount, expenseDate, category, memo`를 같은 형식으로 반환한다. 메모가 없으면 `memo: null`이다. DB의 `created_at`·`updated_at`은 화면 응답에 넣지 않는다.
 - 예산 GET/PUT은 `{month, amount}`를 반환한다. PUT 요청은 `{amount}`다. 미설정 과거 월은 `amount: null`이다.
 - 홈은 `month, petType, petState, budgetAmount, spentAmount, usagePercent, budgetBalanceAmount`를 반환한다. 카테고리·지출 목록은 포함하지 않는다.
-- 통계는 `month, budgetAmount, spentAmount, expenseCount, usagePercent, budgetBalanceAmount, categories`를 반환한다. 각 카테고리는 `category, spentAmount, expenseCount, sharePercent`를 가진다. **펫 필드는 통계에 없다.** 예산이 없는 과거 월은 `budgetAmount, usagePercent, budgetBalanceAmount`만 `null`이다.
+- 통계는 `month, budgetAmount, spentAmount, expenseCount, usagePercent, budgetBalanceAmount, categories`를 반환한다. 각 카테고리는 `category, spentAmount, expenseCount, sharePercent`를 가진다. **펫 필드는 통계에 없다.** 예산이 없는 월은 과거·현재 모두 200으로 `budgetAmount, usagePercent, budgetBalanceAmount`만 `null`이다.
 - 로그인과 토큰 갱신 응답은 `accessToken, refreshToken, accessExpiresInSeconds`를 반환한다. 액세스 만료 초는 `900`이다. 갱신 요청은 현재 `refreshToken`을 보낸다. 로그아웃도 현재 리프레시 토큰으로 요청한다.
 - 로그인 요청 본문은 `{credential}`이다. `credential`이 인가 코드인지 공급자 토큰인지는 앱인토스 연동 결정 전까지 잠정이며, 그 전에는 서버가 로그인을 `503 SOCIAL_LOGIN_UNAVAILABLE`로 거부한다. `{provider}`는 `kakao`·`google`이며 대소문자를 구분하지 않는다. 로그인·갱신·로그아웃 세 경로는 `Authorization` 헤더가 있어도 무시하므로 만료된 액세스 토큰으로도 갱신·로그아웃할 수 있다.
 

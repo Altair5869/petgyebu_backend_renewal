@@ -43,6 +43,15 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CURSOR", "커서가 올바르지 않습니다.", null);
     }
 
+    // 홈 진입 조건. 둘 다 없으면 펫을 먼저 안내한다.
+    public static ApiException petRequired() {
+        return new ApiException(HttpStatus.CONFLICT, "PET_REQUIRED", "펫을 먼저 선택해야 합니다.", null);
+    }
+
+    public static ApiException budgetRequired() {
+        return new ApiException(HttpStatus.CONFLICT, "BUDGET_REQUIRED", "현재 월 예산을 먼저 설정해야 합니다.", null);
+    }
+
     public HttpStatus status() {
         return status;
     }

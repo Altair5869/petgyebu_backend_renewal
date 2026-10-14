@@ -27,6 +27,13 @@ public interface ExpenseRepository extends Repository<Expense, Long> {
     @Query("DELETE FROM expenses WHERE id = :id AND user_id = :userId")
     int delete(long id, long userId);
 
+    // 사용자·월 [from, to)의 지출 합계. 홈과 월 통계가 공유하며 지출이 없으면 0이다.
+    @Query("""
+            SELECT COALESCE(SUM(amount), 0) FROM expenses
+            WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to
+            """)
+    long sumAmount(long userId, LocalDate from, LocalDate to);
+
     @Query("""
             SELECT * FROM expenses
             WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to

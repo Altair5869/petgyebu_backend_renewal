@@ -7,6 +7,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -23,6 +24,13 @@ public class ApiExceptionHandler {
                 .toList();
         return ResponseEntity.badRequest()
                 .body(new ApiError("INVALID_REQUEST", "요청 값이 올바르지 않습니다.", fields));
+    }
+
+    // 경로 변수·쿼리 파라미터의 타입 변환 실패 (예: 숫자가 아닌 지출 ID나 limit)
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    ResponseEntity<ApiError> handle(MethodArgumentTypeMismatchException e) {
+        return ResponseEntity.badRequest().body(new ApiError("INVALID_REQUEST", "요청 값이 올바르지 않습니다.",
+                List.of(new ApiError.FieldError(e.getName(), "형식이 올바르지 않습니다."))));
     }
 
     @ExceptionHandler(HttpMessageNotReadableException.class)

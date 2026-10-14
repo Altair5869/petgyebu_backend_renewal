@@ -118,8 +118,8 @@
 | 5 | DELETE | `/api/v1/users/me` | 회원 탈퇴 |
 | 6 | PUT | `/api/v1/users/me/pet` | CAT/DOG 선택·변경, 갱신된 내 정보 반환. `petType` 생략·`null`·그 외 값은 400 `INVALID_REQUEST` |
 | 7 | GET | `/api/v1/home` | 현재 월 펫·금액 요약 |
-| 8 | GET | `/api/v1/months/{month}/budget` | 해당 월 예산 조회, 미설정 시 `amount: null` |
-| 9 | PUT | `/api/v1/months/{month}/budget` | **현재 월만** 예산 생성·변경 |
+| 8 | GET | `/api/v1/months/{month}/budget` | 해당 월 예산 조회, 미설정 시 `amount: null`. `{month}`는 지출 목록과 같이 2000-01부터 서울 기준 현재 월까지의 `YYYY-MM`만 허용하고 그 외는 400 `INVALID_REQUEST`(`month`) |
+| 9 | PUT | `/api/v1/months/{month}/budget` | **현재 월만** 예산 생성·변경. 과거·미래 월과 형식 오류는 400 `INVALID_REQUEST`(`month`) |
 | 10 | POST | `/api/v1/expenses` | 지출 생성 |
 | 11 | GET | `/api/v1/months/{month}/expenses` | 지출 커서 목록 |
 | 12 | GET | `/api/v1/expenses/{expenseId}` | 지출 단건 조회·수정 초기값 |

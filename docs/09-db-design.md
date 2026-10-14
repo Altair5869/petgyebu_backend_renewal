@@ -69,11 +69,11 @@ users (1) ──< expenses (N)
 동시 정상 PUT은 다음과 같은 **단일 upsert**로 처리한다. 이 유일성 충돌은 앱에 재시도용 409를 주는 사유가 아니다.
 
 ```sql
-INSERT INTO monthly_budgets (user_id, budget_month, amount)
-VALUES (:userId, :firstDay, :amount)
+INSERT INTO monthly_budgets (user_id, budget_month, amount, created_at, updated_at)
+VALUES (:userId, :firstDay, :amount, :now, :now)
 ON CONFLICT (user_id, budget_month)
-DO UPDATE SET amount = EXCLUDED.amount, updated_at = now()
-RETURNING id, user_id, budget_month, amount, created_at, updated_at;
+DO UPDATE SET amount = EXCLUDED.amount, updated_at = EXCLUDED.updated_at
+RETURNING *;
 ```
 
 ## 3. 기준선 DDL (`V1__baseline.sql`)

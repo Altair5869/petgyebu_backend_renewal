@@ -34,6 +34,15 @@ public class ApiException extends RuntimeException {
                 List.of(new ApiError.FieldError(field, message)));
     }
 
+    // 다른 사용자의 지출과 없는 지출을 구분하지 않는다.
+    public static ApiException expenseNotFound() {
+        return new ApiException(HttpStatus.NOT_FOUND, "EXPENSE_NOT_FOUND", "지출을 찾을 수 없습니다.", null);
+    }
+
+    public static ApiException invalidCursor() {
+        return new ApiException(HttpStatus.BAD_REQUEST, "INVALID_CURSOR", "커서가 올바르지 않습니다.", null);
+    }
+
     public HttpStatus status() {
         return status;
     }

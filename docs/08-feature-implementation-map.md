@@ -25,7 +25,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 | 1 | `F-M01` | POST | `/api/v1/auth/login/{provider}` | 카카오·구글 로그인 → `accessToken`, `refreshToken`, `accessExpiresInSeconds`. 본문 `{credential}`, 의미는 잠정 | `users` |
 | 2 | `F-M01` | POST | `/api/v1/auth/refresh` | 현재 `refreshToken` → 두 토큰 교체, `accessExpiresInSeconds` | `users` |
 | 3 | `F-M01` | POST | `/api/v1/auth/logout` | 현재 `refreshToken`으로 활성 로그인 종료 → 204 | `users` |
-| 4 | `F-M01` | GET | `/api/v1/users/me` | `id`, `provider`, `petType`; 선택 전 `petType: null` | `users` |
+| 4 | `F-M01` | GET | `/api/v1/users/me` | `id`, `provider`(`KAKAO\|GOOGLE`), `petType`(`CAT\|DOG`); 선택 전 `petType: null` | `users` |
 | 5 | `F-M01` | DELETE | `/api/v1/users/me` | 지출 → 월 예산 → 사용자 순으로 한 트랜잭션에서 탈퇴 → 204 | 3개 테이블 |
 | 6 | `F-M02` | PUT | `/api/v1/users/me/pet` | `petType: CAT\|DOG` 선택·변경 → 갱신된 내 정보 | `users` |
 | 7 | `F-M06` | GET | `/api/v1/home` | 현재 월의 `month`, `petType`, `petState`, `budgetAmount`, `spentAmount`, `usagePercent`, `budgetBalanceAmount` | 3개 테이블 |

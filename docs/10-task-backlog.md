@@ -20,7 +20,7 @@
 | `APP-001` | **앱 기반 생성.** 별도 React Native 앱 프로젝트에서 iOS·Android 기본 실행과 백엔드 API 주소 설정을 확인한다. 앱 작업의 PR·검증은 앱 저장소에 기록한다. | — | [ ] |
 | `M-002` | **세 테이블 Flyway 기준선.** 빈 PostgreSQL에 `users`, `expenses`, `monthly_budgets`를 만들고 확정된 필드, NOT NULL·FK·두 UNIQUE·지출 목록 인덱스를 검증한다. DB `CHECK`와 `ON DELETE CASCADE`, 이전 제품 마이그레이션은 넣지 않는다. | `M-001` | [x] |
 | `M-003` | **카카오·구글 로그인과 세션.** `(provider, provider_user_id)`로 계정을 식별한다. 자체 액세스·리프레시 토큰을 발급하고 15분·마지막 사용 후 30일 만료, 갱신 시 토큰 교체, 한 활성 로그인, 로그아웃을 검증한다. 이전 액세스·리프레시 토큰과 잘못된 인증은 거부하고 `last_login_time`·세션 ID·토큰 해시·만료를 확인한다. 공급자별 인가 코드 전달 방식은 앱인토스 연동 결정 전까지 잠정이다. | `M-002` | [ ] |
-| `M-004` | **내 정보·탈퇴.** 선택 전 `petType: null`인 내 정보를 반환한다. 탈퇴는 지출 → 예산 → 사용자 순으로 한 트랜잭션에서 삭제한다. 탈퇴 뒤 토큰은 거부되고 삭제 중 실패하면 모든 행이 롤백된다. | `M-003` | [ ] |
+| `M-004` | **내 정보·탈퇴.** 선택 전 `petType: null`인 내 정보를 반환한다. 탈퇴는 지출 → 예산 → 사용자 순으로 한 트랜잭션에서 삭제한다. 탈퇴 뒤 토큰은 거부되고 삭제 중 실패하면 모든 행이 롤백된다. | `M-003` | [x] |
 | `APP-002` | **로그인·계정 화면.** 카카오·구글 로그인, 앱 재시작 후 로그인 유지, 토큰 갱신·만료 안내, 새 로그인으로 이전 세션 종료, 내 정보, 로그아웃·탈퇴 확인을 iOS·Android에서 검증한다. | `APP-001`, `M-003`, `M-004` | [ ] |
 
 > `M-001` 검증 기록 (2026-10-11): `build.gradle`의 Java 25·Spring Boot 4.1.1·Gradle Wrapper 9.7.1, Spring Web MVC·Data JDBC·PostgreSQL·Flyway·Testcontainers 의존성과 `application.yaml`의 앱 이름을 `05-infra-stack.md`와 대조했다. 로컬 Java 25.0.4.1·Docker 28.5.1에서 `./gradlew test --no-daemon --rerun-tasks` 통과(테스트 1개, 실패 0개). 현재 설정 파일은 앱 이름만 담고 있으며 DB 접속은 테스트의 `@ServiceConnection`으로 제공한다. 운영 DB·토큰·소셜 비밀값 설정은 해당 기능·배포 작업에서 환경 변수로 연결한다.
@@ -28,6 +28,8 @@
 > `M-002` 검증 기록 (2026-10-13): `V1__baseline.sql`이 빈 PostgreSQL 16(Testcontainers)에 `users`, `expenses`, `monthly_budgets`만 만든다. `FlywayBaselineSchemaTests`로 컬럼 타입(VARCHAR 길이 포함)·NULL 허용, 복합 `UNIQUE(provider, provider_user_id)`·`UNIQUE(user_id, budget_month)`(같은 공급자의 다른 ID, 다른 사용자의 같은 월은 허용), 없는 사용자 FK 거부, 사용자 삭제 시 CASCADE 없음, DB `CHECK` 없음, 중복 지출 허용, `(user_id, expense_date DESC, id DESC)` 인덱스를 검증했다. `./gradlew test --no-daemon` 통과(테스트 10개, 실패 0개).
 
 > `M-003` 진행 기록 (2026-10-13): 로그인·갱신·로그아웃 API, HS256 액세스 토큰(15분, 세션 ID 포함), 해시 저장 리프레시 토큰(마지막 사용 후 30일, 갱신 시 교체), 한 활성 로그인, Bearer 인증 필터와 공통 오류 응답을 구현했다. 공급자 확인은 `SocialIdentityVerifier` 뒤에 있으며 운영 구현은 연동 전까지 `503 SOCIAL_LOGIN_UNAVAILABLE`을 반환한다. 테스트는 가짜 verifier로 검증했다. `./gradlew test --no-daemon` 통과(테스트 42개, 실패 0개). 실제 카카오·구글 연동 전이므로 완료 표시하지 않는다.
+
+> `M-004` 검증 기록 (2026-10-14): `GET /api/v1/users/me`가 `{id, provider, petType}`를 반환한다(`provider`는 저장값 `KAKAO`·`GOOGLE`, 선택 전 `petType: null`). `DELETE /api/v1/users/me`는 지출 → 월 예산 → 사용자 순의 명시적 DELETE를 한 트랜잭션에서 실행하고 204를 반환한다. `UserApiTests`로 미인증 401, 다른 사용자 행 보존, 탈퇴 뒤 액세스·리프레시 토큰 401, 사용자 삭제 단계를 PostgreSQL 트리거로 실패시켰을 때 지출·예산·사용자 행 전체 롤백을 검증했다. 실제 카카오·구글 연동 전이므로 `M-003`과 같은 가짜 verifier로 로그인한 상태에서 검증했다. `./gradlew test --no-daemon` 통과(테스트 48개, 실패 0개).
 
 ## Sprint 1 — 펫 선택·수동 지출
 

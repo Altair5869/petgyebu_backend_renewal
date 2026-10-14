@@ -46,4 +46,17 @@ public interface UserRepository extends Repository<User, Long> {
 
     @Query("SELECT EXISTS (SELECT 1 FROM users WHERE id = :id AND active_session_id = :sessionId)")
     boolean hasActiveSession(long id, UUID sessionId);
+
+    // 탈퇴 전용. 지출·예산은 사용자 집합의 컬렉션이 아니므로 명시적으로 지운다.
+    @Modifying
+    @Query("DELETE FROM expenses WHERE user_id = :userId")
+    int deleteExpensesOf(long userId);
+
+    @Modifying
+    @Query("DELETE FROM monthly_budgets WHERE user_id = :userId")
+    int deleteMonthlyBudgetsOf(long userId);
+
+    @Modifying
+    @Query("DELETE FROM users WHERE id = :id")
+    int deleteUser(long id);
 }

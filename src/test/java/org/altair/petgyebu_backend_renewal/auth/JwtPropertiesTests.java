@@ -14,7 +14,9 @@ class JwtPropertiesTests {
 
     @Test
     void failsToStartWithoutSecret() {
-        runner.run(context -> assertThat(context).hasFailed());
+        // 개발자 셸의 PETGYEBU_JWT_SECRET 환경 변수가 바인딩되지 않도록 빈 값으로 덮는다.
+        runner.withPropertyValues("petgyebu.jwt.secret=")
+                .run(context -> assertThat(context).hasFailed());
     }
 
     @Test

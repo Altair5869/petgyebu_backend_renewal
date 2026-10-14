@@ -58,6 +58,7 @@ DB에는 합의한 `NOT NULL`, 외래 키, `UNIQUE(provider, provider_user_id)`,
 ## 5. 로컬 개발·검증·배포
 
 - 빈 PostgreSQL에 Flyway 마이그레이션을 적용해 시작한다. 이전 프로젝트의 17개 테이블과 계좌 연동 마이그레이션을 복사하지 않는다.
+- 로컬 실행(`./gradlew bootRun`)은 개발 전용 의존성 `spring-boot-docker-compose`가 `compose.yaml`의 PostgreSQL 16을 띄우고 접속 정보를 연결한다. 로컬 DB는 `127.0.0.1`에만 열고 비밀번호 없는 trust 인증을 쓴다. 이 의존성은 테스트·배포 산출물에 포함되지 않으며 운영 DB 접속 정보는 `SPRING_DATASOURCE_*` 환경 변수로 주입한다.
 - 로컬·CI에서 `./gradlew test --no-daemon`으로 테스트한다. 사용자별 접근, 입력 검증, 서울 시간대의 월 경계, 50%·80%·100% 상태 경계, 예산 upsert·탈퇴 트랜잭션을 검증한다.
 - Cloud Run·Cloud SQL 배포를 진행할 때 DB 접속 정보·토큰 서명 키·소셜 인증 비밀값을 Secret Manager 또는 배포 환경의 비밀 설정으로 주입한다. 예약 작업이 없다는 가정 아래 인스턴스·CPU·비용 설정은 실제 트래픽에 맞춰 정한다.
 - 계좌 연동, CODEF·금융결제원 SDK, Spring Batch·ShedLock, 금융 API 재시도, FCM, 보상·상점용 저장소는 MVP 구성에 넣지 않는다. 앱의 펫 연출 에셋을 위한 서버 스토리지·CDN도 현재 필수 구성으로 두지 않는다.

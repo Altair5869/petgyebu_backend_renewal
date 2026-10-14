@@ -20,6 +20,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.web.servlet.MockMvc;
@@ -132,6 +133,67 @@ class UserApiTests {
     }
 
     @Test
+    void withdrawalRetriesWhenConcurrentInsertCausesForeignKeyViolation() throws Exception {
+        String access = accessToken(login("kakao", "ok:k1"));
+        login("kakao", "ok:other");
+        seedRows(1);
+        seedRows(2);
+        // 첫 시도에서만 지출 삭제 뒤 같은 사용자의 지출이 끼어들어 사용자 삭제가 FK 위반으로 실패한다.
+        // 시퀀스는 롤백되지 않으므로 1회 표시로 쓴다.
+        createRacingInsertTrigger("nextval('withdraw_race_seq') = 1");
+        try {
+            withdraw(access).andExpect(status().isNoContent());
+            assertThat(attempts()).isEqualTo(2);
+        } finally {
+            dropRacingInsertTrigger();
+        }
+
+        assertThat(counts(1)).containsExactly(0, 0, 0);
+        assertThat(counts(2)).containsExactly(1, 2, 1);
+    }
+
+    @Test
+    void withdrawalGivesUpAfterThreeForeignKeyViolationsAndKeepsAllRows() throws Exception {
+        String access = accessToken(login("kakao", "ok:k1"));
+        seedRows(1);
+        createRacingInsertTrigger("nextval('withdraw_race_seq') > 0");
+        try {
+            withdraw(access)
+                    .andExpect(status().isInternalServerError())
+                    .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"));
+            assertThat(attempts()).isEqualTo(3);
+        } finally {
+            dropRacingInsertTrigger();
+        }
+
+        assertThat(counts(1)).containsExactly(1, 2, 1);
+    }
+
+    @Test
+    void withdrawalDoesNotRetryNonForeignKeyFailure() throws Exception {
+        login("kakao", "ok:k1");
+        jdbc.execute("CREATE SEQUENCE withdraw_race_seq");
+        jdbc.execute("""
+                CREATE FUNCTION fail_user_delete() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN PERFORM nextval('withdraw_race_seq');
+                RAISE EXCEPTION 'forced user delete failure' USING ERRCODE = '23505'; END $$""");
+        jdbc.execute("""
+                CREATE TRIGGER fail_user_delete BEFORE DELETE ON users
+                FOR EACH ROW EXECUTE FUNCTION fail_user_delete()""");
+        try {
+            // FK가 아닌 무결성 오류(23505)는 DataIntegrityViolationException이어도 다시 시도하지 않는다.
+            assertThatThrownBy(() -> userService.withdraw(1))
+                    .isInstanceOf(DataIntegrityViolationException.class)
+                    .hasMessageContaining("forced user delete failure");
+            assertThat(attempts()).isEqualTo(1);
+        } finally {
+            jdbc.execute("DROP TRIGGER fail_user_delete ON users");
+            jdbc.execute("DROP FUNCTION fail_user_delete()");
+            jdbc.execute("DROP SEQUENCE withdraw_race_seq");
+        }
+    }
+
+    @Test
     void selectPetIsReflectedInMe() throws Exception {
         String body = login("google", "ok:g1").andReturn().getResponse().getContentAsString();
         String access = JsonPath.read(body, "$.accessToken");
@@ -206,6 +268,34 @@ class UserApiTests {
         assertThatThrownBy(() -> userService.selectPet(99, JsonNodeFactory.instance.objectNode().put("petType", "CAT")))
                 .isInstanceOfSatisfying(ApiException.class,
                         e -> assertThat(e.code()).isEqualTo("UNAUTHORIZED"));
+    }
+
+    // 사용자 삭제 직전(지출·예산 삭제 뒤)에 조건이 참이면 같은 사용자의 지출을 끼워 넣는다.
+    private void createRacingInsertTrigger(String condition) {
+        jdbc.execute("CREATE SEQUENCE withdraw_race_seq");
+        jdbc.execute("""
+                CREATE FUNCTION racing_insert() RETURNS trigger LANGUAGE plpgsql AS $$
+                BEGIN
+                  IF %s THEN
+                    INSERT INTO expenses (user_id, amount, expense_date, category)
+                    VALUES (OLD.id, 500, '2026-10-03', 'FOOD');
+                  END IF;
+                  RETURN OLD;
+                END $$""".formatted(condition));
+        jdbc.execute("""
+                CREATE TRIGGER racing_insert BEFORE DELETE ON users
+                FOR EACH ROW EXECUTE FUNCTION racing_insert()""");
+    }
+
+    private void dropRacingInsertTrigger() {
+        jdbc.execute("DROP TRIGGER racing_insert ON users");
+        jdbc.execute("DROP FUNCTION racing_insert()");
+        jdbc.execute("DROP SEQUENCE withdraw_race_seq");
+    }
+
+    // 트리거가 실행된 횟수 = 사용자 삭제 시도 횟수
+    private long attempts() {
+        return jdbc.queryForObject("SELECT last_value FROM withdraw_race_seq", Long.class);
     }
 
     private String petType(long userId) {

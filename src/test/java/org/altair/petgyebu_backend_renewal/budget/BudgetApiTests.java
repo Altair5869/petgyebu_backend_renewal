@@ -1,6 +1,7 @@
 package org.altair.petgyebu_backend_renewal.budget;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -20,6 +21,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.support.MutableClock;
 import org.altair.petgyebu_backend_renewal.support.TestAuthConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -271,6 +273,20 @@ class BudgetApiTests {
         expectUnauthorized(mvc.perform(get("/api/v1/months/2026-10/budget")));
         expectUnauthorized(mvc.perform(put("/api/v1/months/2026-10/budget")
                 .contentType(MediaType.APPLICATION_JSON).content("{\"amount\":1000}")));
+        assertThat(budgetCount()).isZero();
+    }
+
+    @Test
+    void putAfterUserRowDeletedIsUnauthorized() throws Exception {
+        accessToken("a");
+        // 인증 통과 직후 동시 탈퇴로 사용자 행이 사라진 상황. HTTP는 인증에서 먼저 거절되므로 서비스를 직접 호출한다.
+        jdbc.update("DELETE FROM users WHERE id = 1");
+
+        assertThatThrownBy(() -> budgetService.put(1, "2026-10", JsonNodeFactory.instance.objectNode().put("amount", 1000)))
+                .isInstanceOfSatisfying(ApiException.class, e -> {
+                    assertThat(e.status().value()).isEqualTo(401);
+                    assertThat(e.code()).isEqualTo("UNAUTHORIZED");
+                });
         assertThat(budgetCount()).isZero();
     }
 

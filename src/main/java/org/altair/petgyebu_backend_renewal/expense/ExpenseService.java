@@ -10,7 +10,9 @@ import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
+import org.altair.petgyebu_backend_renewal.common.DbErrors;
 import org.altair.petgyebu_backend_renewal.common.Months;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -46,7 +48,15 @@ public class ExpenseService {
         Category category = categoryNode == null || categoryNode.isNull() ? Category.OTHER : category(categoryNode);
         String memo = memo(body.get("memo"));
         OffsetDateTime now = OffsetDateTime.now(clock);
-        return expenses.save(new Expense(null, userId, amount, expenseDate, category, memo, now, now));
+        try {
+            return expenses.save(new Expense(null, userId, amount, expenseDate, category, memo, now, now));
+        } catch (DataIntegrityViolationException e) {
+            // 인증 직후 동시 탈퇴로 사용자 행이 사라졌다면 /users/me와 같이 401로 응답한다.
+            if (DbErrors.isForeignKeyViolation(e)) {
+                throw ApiException.unauthorized();
+            }
+            throw e;
+        }
     }
 
     @Transactional(readOnly = true)

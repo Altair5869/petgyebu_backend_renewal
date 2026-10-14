@@ -5,7 +5,9 @@ import java.time.OffsetDateTime;
 import java.time.YearMonth;
 import java.util.Optional;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
+import org.altair.petgyebu_backend_renewal.common.DbErrors;
 import org.altair.petgyebu_backend_renewal.common.Months;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.JsonNode;
@@ -42,6 +44,14 @@ public class BudgetService {
                 || node.longValue() > MAX_AMOUNT) {
             throw ApiException.invalidRequest("amount", "1 이상 " + MAX_AMOUNT + " 이하의 정수여야 합니다.");
         }
-        return budgets.upsert(userId, month.atDay(1), node.longValue(), OffsetDateTime.now(clock));
+        try {
+            return budgets.upsert(userId, month.atDay(1), node.longValue(), OffsetDateTime.now(clock));
+        } catch (DataIntegrityViolationException e) {
+            // 인증 직후 동시 탈퇴로 사용자 행이 사라졌다면 /users/me와 같이 401로 응답한다.
+            if (DbErrors.isForeignKeyViolation(e)) {
+                throw ApiException.unauthorized();
+            }
+            throw e;
+        }
     }
 }

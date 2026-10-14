@@ -116,7 +116,7 @@
 | 3 | POST | `/api/v1/auth/logout` | 현재 로그인 무효화 |
 | 4 | GET | `/api/v1/users/me` | `id, provider, petType` 조회. `provider`는 `KAKAO\|GOOGLE`, `petType`은 `CAT\|DOG`, 선택 전 `petType: null` |
 | 5 | DELETE | `/api/v1/users/me` | 회원 탈퇴 |
-| 6 | PUT | `/api/v1/users/me/pet` | CAT/DOG 선택·변경, 갱신된 내 정보 반환 |
+| 6 | PUT | `/api/v1/users/me/pet` | CAT/DOG 선택·변경, 갱신된 내 정보 반환. `petType` 생략·`null`·그 외 값은 400 `INVALID_REQUEST` |
 | 7 | GET | `/api/v1/home` | 현재 월 펫·금액 요약 |
 | 8 | GET | `/api/v1/months/{month}/budget` | 해당 월 예산 조회, 미설정 시 `amount: null` |
 | 9 | PUT | `/api/v1/months/{month}/budget` | **현재 월만** 예산 생성·변경 |

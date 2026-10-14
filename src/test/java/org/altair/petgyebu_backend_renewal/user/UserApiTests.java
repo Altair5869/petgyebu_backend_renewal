@@ -5,10 +5,12 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.jayway.jsonpath.JsonPath;
+import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.support.MutableClock;
 import org.altair.petgyebu_backend_renewal.support.TestAuthConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -25,6 +27,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import tools.jackson.databind.node.JsonNodeFactory;
 
 @Testcontainers
 @SpringBootTest
@@ -126,6 +129,100 @@ class UserApiTests {
         }
 
         assertThat(counts(1)).containsExactly(1, 2, 1);
+    }
+
+    @Test
+    void selectPetIsReflectedInMe() throws Exception {
+        String body = login("google", "ok:g1").andReturn().getResponse().getContentAsString();
+        String access = JsonPath.read(body, "$.accessToken");
+        String refresh = JsonPath.read(body, "$.refreshToken");
+
+        selectPet(access, "{\"petType\":\"CAT\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.provider").value("GOOGLE"))
+                .andExpect(jsonPath("$.petType").value("CAT"))
+                .andExpect(jsonPath("$.length()").value(3));
+
+        me(access).andExpect(status().isOk()).andExpect(jsonPath("$.petType").value("CAT"));
+        // 펫 변경이 세션·리프레시 토큰 컬럼을 건드리지 않아 로그인이 유지된다.
+        mvc.perform(post("/api/v1/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"refreshToken\":\"" + refresh + "\"}"))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void changePetKeepsExpensesAndBudgetsAndOtherUsers() throws Exception {
+        String access = accessToken(login("kakao", "ok:k1"));
+        login("kakao", "ok:other");
+        jdbc.update("UPDATE users SET pet_type = 'CAT'");
+        seedRows(1);
+        seedRows(2);
+        String before = snapshot(1);
+
+        selectPet(access, "{\"petType\":\"DOG\"}")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.petType").value("DOG"));
+
+        assertThat(petType(1)).isEqualTo("DOG");
+        assertThat(petType(2)).isEqualTo("CAT");
+        assertThat(snapshot(1)).isEqualTo(before);
+        assertThat(counts(2)).containsExactly(1, 2, 1);
+    }
+
+    @Test
+    void selectPetRejectsInvalidPetType() throws Exception {
+        String access = accessToken(login("kakao", "ok:k1"));
+        jdbc.update("UPDATE users SET pet_type = 'CAT' WHERE id = 1");
+
+        for (String body : new String[] {"{}", "{\"petType\":null}", "{\"petType\":\"cat\"}",
+                "{\"petType\":\"BIRD\"}", "{\"petType\":\"\"}", "{\"petType\":0}",
+                "{\"petType\":[\"CAT\"]}"}) {
+            selectPet(access, body)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                    .andExpect(jsonPath("$.fields[0].field").value("petType"));
+        }
+        for (String body : new String[] {"[]", "\"CAT\"", "{"}) {
+            selectPet(access, body)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        }
+        assertThat(petType(1)).isEqualTo("CAT");
+    }
+
+    @Test
+    void selectPetRequiresAuthentication() throws Exception {
+        expectUnauthorized(mvc.perform(put("/api/v1/users/me/pet")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"petType\":\"CAT\"}")));
+        expectUnauthorized(selectPet("garbage", "{\"petType\":\"CAT\"}"));
+    }
+
+    @Test
+    void selectPetAfterRowVanishedIsUnauthorized() {
+        assertThatThrownBy(() -> userService.selectPet(99, JsonNodeFactory.instance.objectNode().put("petType", "CAT")))
+                .isInstanceOfSatisfying(ApiException.class,
+                        e -> assertThat(e.code()).isEqualTo("UNAUTHORIZED"));
+    }
+
+    private String petType(long userId) {
+        return jdbc.queryForObject("SELECT pet_type FROM users WHERE id = ?", String.class, userId);
+    }
+
+    // 사용자의 지출·예산 행 전체 내용
+    private String snapshot(long userId) {
+        return jdbc.queryForList("SELECT * FROM expenses WHERE user_id = ? ORDER BY id", userId).toString()
+                + jdbc.queryForList("SELECT * FROM monthly_budgets WHERE user_id = ? ORDER BY id", userId);
+    }
+
+    private ResultActions selectPet(String accessToken, String body) throws Exception {
+        return mvc.perform(put("/api/v1/users/me/pet")
+                .header("Authorization", "Bearer " + accessToken)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
     }
 
     private void seedRows(long userId) {

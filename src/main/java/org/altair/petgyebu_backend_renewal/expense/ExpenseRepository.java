@@ -34,6 +34,17 @@ public interface ExpenseRepository extends Repository<Expense, Long> {
             """)
     long sumAmount(long userId, LocalDate from, LocalDate to);
 
+    record CategoryTotal(Category category, long spentAmount, long expenseCount) {
+    }
+
+    // 사용자·월 [from, to)의 카테고리별 합계·건수. 지출이 있는 카테고리만 나온다.
+    @Query("""
+            SELECT category, SUM(amount) AS spent_amount, COUNT(*) AS expense_count FROM expenses
+            WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to
+            GROUP BY category
+            """)
+    List<CategoryTotal> sumByCategory(long userId, LocalDate from, LocalDate to);
+
     @Query("""
             SELECT * FROM expenses
             WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to

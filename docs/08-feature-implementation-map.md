@@ -60,7 +60,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 - 월 경계는 `Asia/Seoul`의 `[월 첫날, 다음 달 첫날)`이다. `spentAmount`는 사용자·월의 현재 지출 합계, `budgetBalanceAmount = budgetAmount - spentAmount`는 부호가 있는 잔액이다.
 - 사용률은 `spentAmount / budgetAmount × 100`이다. API `usagePercent`는 소수 첫째 자리에서 버리고 펫 상태는 표시 전 실제 비율로 판정한다. 현재 월의 상태는 50% 미만 `STABLE`, 50% 이상 80% 미만 `CAUTION`, 80% 이상 100% 미만 `WARNING`, 100% 이상 `BUDGET_REACHED`다. 100% 초과도 같은 상태이며 잔액은 음수다.
 - 통계 응답은 `month`, `budgetAmount`, `spentAmount`, `expenseCount`, `usagePercent`, `budgetBalanceAmount`, `categories`다. 각 카테고리는 `category`, `spentAmount`, `expenseCount`, `sharePercent`다. 지출이 있는 카테고리만 금액 내림차순으로 반환하고 동률은 고정 코드 순서다. 비중은 소수 첫째 자리 반올림이다.
-- 지출이 없는 월은 합계 0·건수 0·빈 카테고리 배열이다. 예산 없는 과거 월은 `budgetAmount`, `usagePercent`, `budgetBalanceAmount`만 `null`이다. 지난달을 포함한 과거 월에는 펫을 반환하지 않는다.
+- 지출이 없는 월은 합계 0·건수 0·빈 카테고리 배열이다. 예산 없는 월은 과거·현재 모두 200으로 `budgetAmount`, `usagePercent`, `budgetBalanceAmount`만 `null`이다. 지난달을 포함한 과거 월에는 펫을 반환하지 않는다.
 - 지출이나 현재 월 예산이 바뀌면 홈·통계를 DB 원본 기준으로 다시 계산한다. 지출 날짜를 다른 월로 옮기면 이전 월과 새 월 모두 갱신한다. 월 합계 캐시는 정확한 DB 구현·성능 측정 뒤 별도 실험으로 다룬다.
 
 ### 공통 실패 응답

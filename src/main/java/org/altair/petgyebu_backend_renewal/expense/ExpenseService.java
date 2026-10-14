@@ -10,6 +10,7 @@ import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
+import org.altair.petgyebu_backend_renewal.common.Months;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -78,7 +79,7 @@ public class ExpenseService {
 
     @Transactional(readOnly = true)
     public Page list(long userId, String monthText, int limit, String cursor) {
-        YearMonth month = month(monthText);
+        YearMonth month = Months.parsePastOrCurrent(monthText, clock);
         if (limit < 1 || limit > MAX_LIMIT) {
             throw ApiException.invalidRequest("limit", "1 이상 " + MAX_LIMIT + " 이하만 허용합니다.");
         }
@@ -132,23 +133,6 @@ public class ExpenseService {
 
     private LocalDate seoulToday() {
         return LocalDate.ofInstant(clock.instant(), SEOUL);
-    }
-
-    private YearMonth month(String text) {
-        // 형식을 먼저 고정한다. 기본 파서는 부호·5자리 이상 연도도 받아들인다.
-        if (!text.matches("\\d{4}-\\d{2}")) {
-            throw ApiException.invalidRequest("month", "YYYY-MM 형식이어야 합니다.");
-        }
-        YearMonth month;
-        try {
-            month = YearMonth.parse(text);
-        } catch (DateTimeParseException e) {
-            throw ApiException.invalidRequest("month", "YYYY-MM 형식이어야 합니다.");
-        }
-        if (month.isAfter(YearMonth.from(seoulToday())) || month.isBefore(YearMonth.from(MIN_DATE))) {
-            throw ApiException.invalidRequest("month", "2000-01부터 현재 월까지만 조회할 수 있습니다.");
-        }
-        return month;
     }
 
     private static void requireObject(JsonNode body) {

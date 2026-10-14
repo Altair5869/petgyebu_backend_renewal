@@ -29,8 +29,8 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 | 5 | `F-M01` | DELETE | `/api/v1/users/me` | 지출 → 월 예산 → 사용자 순으로 한 트랜잭션에서 탈퇴 → 204 | 3개 테이블 |
 | 6 | `F-M02` | PUT | `/api/v1/users/me/pet` | `petType: CAT\|DOG` 선택·변경 → 갱신된 내 정보. 생략·`null`·그 밖의 값(대소문자 구분)은 400 `INVALID_REQUEST`(`petType`) | `users` |
 | 7 | `F-M06` | GET | `/api/v1/home` | 현재 월의 `month`, `petType`, `petState`, `budgetAmount`, `spentAmount`, `usagePercent`, `budgetBalanceAmount` | 3개 테이블 |
-| 8 | `F-M04` | GET | `/api/v1/months/{month}/budget` | 해당 월 `{month, amount}`; 미설정이면 `amount: null` | `monthly_budgets` |
-| 9 | `F-M04` | PUT | `/api/v1/months/{month}/budget` | **현재 월만** `{amount}`로 생성·변경 → `{month, amount}`, 항상 200 | `monthly_budgets` |
+| 8 | `F-M04` | GET | `/api/v1/months/{month}/budget` | 해당 월 `{month, amount}`; 미설정이면 `amount: null`. 2000-01~현재 월 밖·형식 오류는 400 `month` | `monthly_budgets` |
+| 9 | `F-M04` | PUT | `/api/v1/months/{month}/budget` | **현재 월만** `{amount}`로 생성·변경 → `{month, amount}`, 항상 200. 과거·미래 월은 400 `month` | `monthly_budgets` |
 | 10 | `F-M03` | POST | `/api/v1/expenses` | `amount`, `expenseDate`, 선택 `category`·`memo` → 지출 응답, 201 | `expenses` |
 | 11 | `F-M03` | GET | `/api/v1/months/{month}/expenses` | `limit`, `cursor` → `items`, `nextCursor` | `expenses` |
 | 12 | `F-M03` | GET | `/api/v1/expenses/{expenseId}` | 본인 지출 단건·수정 초기값 → 지출 응답 | `expenses` |

@@ -114,7 +114,7 @@
 | 1 | POST | `/api/v1/auth/login/{provider}` | 카카오·구글 로그인 |
 | 2 | POST | `/api/v1/auth/refresh` | 리프레시 토큰 교체 및 새 토큰 발급 |
 | 3 | POST | `/api/v1/auth/logout` | 현재 로그인 무효화 |
-| 4 | GET | `/api/v1/users/me` | `id, provider, petType` 조회. 선택 전 `petType: null` |
+| 4 | GET | `/api/v1/users/me` | `id, provider, petType` 조회. `provider`는 `KAKAO\|GOOGLE`, `petType`은 `CAT\|DOG`, 선택 전 `petType: null` |
 | 5 | DELETE | `/api/v1/users/me` | 회원 탈퇴 |
 | 6 | PUT | `/api/v1/users/me/pet` | CAT/DOG 선택·변경, 갱신된 내 정보 반환 |
 | 7 | GET | `/api/v1/home` | 현재 월 펫·금액 요약 |

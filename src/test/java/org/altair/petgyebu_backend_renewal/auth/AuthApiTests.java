@@ -183,6 +183,83 @@ class AuthApiTests {
     }
 
     @Test
+    void logoutRejectsForgedUserPrefixWithoutEndingSessions() throws Exception {
+        String a = login("kakao", "ok:a").andReturn().getResponse().getContentAsString();
+        String b = login("kakao", "ok:b").andReturn().getResponse().getContentAsString();
+        String aRefresh = JsonPath.read(a, "$.refreshToken");
+        String bRefresh = JsonPath.read(b, "$.refreshToken");
+
+        expectUnauthorized(logout("2" + aRefresh.substring(aRefresh.indexOf('.'))));
+
+        me(JsonPath.read(a, "$.accessToken")).andExpect(status().isOk());
+        me(JsonPath.read(b, "$.accessToken")).andExpect(status().isOk());
+        logout(aRefresh).andExpect(status().isNoContent());
+        logout(bRefresh).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void logoutRejectsExpiredRefreshToken() throws Exception {
+        // 마지막 사용 후 30일 직전까지는 유효하다.
+        String beforeExpiry = JsonPath.read(login("kakao", "ok:k1").andReturn().getResponse().getContentAsString(),
+                "$.refreshToken");
+        clock.advance(Duration.ofDays(30).minusSeconds(1));
+        logout(beforeExpiry).andExpect(status().isNoContent());
+
+        // 정확히 30일이 되는 순간부터 만료다.
+        String atExpiry = JsonPath.read(login("kakao", "ok:k1").andReturn().getResponse().getContentAsString(),
+                "$.refreshToken");
+        clock.advance(Duration.ofDays(30));
+        expectUnauthorized(logout(atExpiry));
+    }
+
+    @Test
+    void logoutRejectsRotatedOutRefreshToken() throws Exception {
+        String old = JsonPath.read(login("kakao", "ok:k1").andReturn().getResponse().getContentAsString(),
+                "$.refreshToken");
+        String rotated = JsonPath.read(refresh(old).andReturn().getResponse().getContentAsString(),
+                "$.refreshToken");
+
+        expectUnauthorized(logout(old));
+        logout(rotated).andExpect(status().isNoContent());
+    }
+
+    @Test
+    void logoutRejectsRefreshTokenSupersededByNewLogin() throws Exception {
+        String first = JsonPath.read(login("kakao", "ok:k1").andReturn().getResponse().getContentAsString(),
+                "$.refreshToken");
+        String second = accessToken(login("kakao", "ok:k1"));
+
+        expectUnauthorized(logout(first));
+        me(second).andExpect(status().isOk());
+    }
+
+    @Test
+    void logoutRejectsMalformedAndBlankTokens() throws Exception {
+        login("kakao", "ok:k1").andExpect(status().isOk());
+        for (String token : new String[] {"abc", "1.", ".x", "0.x", "-1.x", "99999999999999999999.x", "1.x"}) {
+            expectUnauthorized(logout(token));
+        }
+        for (String body : new String[] {"{\"refreshToken\":\"\"}", "{\"refreshToken\":\"   \"}", "{}"}) {
+            mvc.perform(post("/api/v1/auth/logout").contentType(MediaType.APPLICATION_JSON).content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                    .andExpect(jsonPath("$.fields[0].field").value("refreshToken"));
+        }
+    }
+
+    @Test
+    void logoutEndsOnlyOwnSession() throws Exception {
+        String a = JsonPath.read(login("kakao", "ok:a").andReturn().getResponse().getContentAsString(),
+                "$.refreshToken");
+        String b = login("kakao", "ok:b").andReturn().getResponse().getContentAsString();
+
+        logout(a).andExpect(status().isNoContent());
+
+        me(JsonPath.read(b, "$.accessToken")).andExpect(status().isOk());
+        refresh(JsonPath.read(b, "$.refreshToken")).andExpect(status().isOk());
+    }
+
+    @Test
     void logoutIgnoresExpiredBearerHeader() throws Exception {
         String body = login("kakao", "ok:k1").andReturn().getResponse().getContentAsString();
         String staleAccess = JsonPath.read(body, "$.accessToken");

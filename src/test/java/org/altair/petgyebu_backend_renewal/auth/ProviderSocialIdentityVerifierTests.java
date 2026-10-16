@@ -41,7 +41,6 @@ class ProviderSocialIdentityVerifierTests {
 
     @Test
     void delegatesGoogleToGoogleVerifier() {
-        // client IDs are empty → Google verifier reports unavailable without network
         assertThatThrownBy(() -> verifier.verify(Provider.GOOGLE, "t"))
                 .isInstanceOfSatisfying(ApiException.class,
                         e -> assertThat(e.status()).isEqualTo(HttpStatus.SERVICE_UNAVAILABLE));

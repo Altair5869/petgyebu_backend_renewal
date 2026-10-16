@@ -54,8 +54,6 @@ class HomeApiTests {
         clock.set(TestAuthConfig.START);
     }
 
-    // --- 응답 형태 ---
-
     @Test
     void homeReturnsCurrentMonthSummaryOnly() throws Exception {
         String a = accessToken("a");
@@ -82,8 +80,6 @@ class HomeApiTests {
 
         expectHome(home(a), 100000, 0, "0.0", "STABLE", 100000);
     }
-
-    // --- 수용 기준 2·3: 상태 경계와 표시 버림 ---
 
     @Test
     void acceptanceExamplesForBudgetOneHundredThousand() throws Exception {
@@ -136,8 +132,6 @@ class HomeApiTests {
         expectHome(home(a), 100000000, 2533333333L, "2533.3", "BUDGET_REACHED", -2433333333L);
     }
 
-    // --- 진입 조건 ---
-
     @Test
     void missingPetIsPetRequired() throws Exception {
         String a = accessToken("a");
@@ -169,8 +163,6 @@ class HomeApiTests {
 
         expectConflict(home(a), "BUDGET_REQUIRED");
     }
-
-    // --- 서울 월 경계 ---
 
     @Test
     void onlyCurrentSeoulMonthExpensesCount() throws Exception {
@@ -214,8 +206,6 @@ class HomeApiTests {
         expectConflict(home(a), "BUDGET_REQUIRED");
     }
 
-    // --- 사용자 격리 ---
-
     @Test
     void otherUsersExpensesAndBudgetsAreNotCounted() throws Exception {
         String a = readyUser("a", 100000);
@@ -231,8 +221,6 @@ class HomeApiTests {
         expectHome(home(b), 40000, 35000, "87.5", "WARNING", 5000);
         home(b).andExpect(jsonPath("$.petType").value("DOG"));
     }
-
-    // --- 수용 기준 4: 변경 뒤 재조회 ---
 
     @Test
     void homeReflectsExpenseAndBudgetChanges() throws Exception {
@@ -270,8 +258,6 @@ class HomeApiTests {
         home(a).andExpect(jsonPath("$.petType").value("DOG")).andExpect(jsonPath("$.spentAmount").value(20000));
     }
 
-    // --- 인증 ---
-
     @Test
     void homeRequiresAuthentication() throws Exception {
         mvc.perform(get("/api/v1/home"))
@@ -284,8 +270,6 @@ class HomeApiTests {
         assertThatThrownBy(() -> homeService.home(999L))
                 .isInstanceOfSatisfying(ApiException.class, e -> assertThat(e.code()).isEqualTo("UNAUTHORIZED"));
     }
-
-    // --- 도우미 ---
 
     private String readyUser(String id, long budget) throws Exception {
         String token = accessToken(id);

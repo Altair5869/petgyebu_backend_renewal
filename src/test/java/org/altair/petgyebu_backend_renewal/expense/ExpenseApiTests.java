@@ -61,8 +61,6 @@ class ExpenseApiTests {
         clock.set(TestAuthConfig.START);
     }
 
-    // --- 생성 ---
-
     @Test
     void createReturns201WithItemShape() throws Exception {
         String a = accessToken("a");
@@ -183,8 +181,6 @@ class ExpenseApiTests {
         expectInvalid(create(a, body(1, "2026-10-14", "FOOD", null)), "expenseDate");
         create(a, body(1, "2020-01-01", "FOOD", null)).andExpect(status().isCreated());
     }
-
-    // --- 단건 조회·수정·삭제 ---
 
     @Test
     void getReturnsOwnExpense() throws Exception {
@@ -327,8 +323,6 @@ class ExpenseApiTests {
         expectUnauthorized(mvc.perform(delete("/api/v1/expenses/1")));
         expectUnauthorized(getOne("garbage", 1));
     }
-
-    // --- 목록 ---
 
     @Test
     void listPagesByDateThenIdDescendingAcrossTies() throws Exception {
@@ -491,8 +485,6 @@ class ExpenseApiTests {
         list(b, "2026-10", "").andExpect(jsonPath("$.items[*].id", contains(3, 2)));
     }
 
-    // --- 입력 범위·QA 회귀 ---
-
     @Test
     void amountUpperBoundIsOneHundredMillion() throws Exception {
         String a = accessToken("a");
@@ -580,8 +572,6 @@ class ExpenseApiTests {
                 });
         assertThat(expenseCount()).isZero();
     }
-
-    // --- 도우미 ---
 
     private void seed(long userId, String date) {
         jdbc.update("INSERT INTO expenses (user_id, amount, expense_date, category) VALUES (?, 1000, ?::date, 'FOOD')",

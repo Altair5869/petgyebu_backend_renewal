@@ -53,8 +53,6 @@ class StatsApiTests {
         clock.set(TestAuthConfig.START);
     }
 
-    // --- 응답 형태 ---
-
     @Test
     void currentMonthReturnsExactFieldsWithoutPet() throws Exception {
         String a = accessToken("a");
@@ -114,7 +112,7 @@ class StatsApiTests {
                 .andExpect(jsonPath("$.*", Matchers.hasSize(7)));
     }
 
-    // 사용자 결정: 현재 월에 예산이 없어도 409가 아니라 200과 예산 관련 null이다. 펫도 요구하지 않는다.
+    // 현재 월도 예산이 없으면 409가 아니라 200과 예산 관련 null이다. 펫도 요구하지 않는다.
     @Test
     void currentMonthWithoutBudgetHasNullBudgetFields() throws Exception {
         String a = accessToken("a");
@@ -128,8 +126,6 @@ class StatsApiTests {
                          "categories":[{"category":"OTHER","spentAmount":3000,"expenseCount":1,"sharePercent":100.0}]}
                         """, JsonCompareMode.STRICT));
     }
-
-    // --- 빈 월 ---
 
     @Test
     void emptyCurrentMonthIsZeroWithEmptyCategories() throws Exception {
@@ -164,8 +160,6 @@ class StatsApiTests {
                         """, JsonCompareMode.STRICT));
     }
 
-    // --- 카테고리 정렬 ---
-
     @Test
     void categoriesSortByAmountDescThenFixedCodeOrder() throws Exception {
         String a = accessToken("a");
@@ -188,8 +182,6 @@ class StatsApiTests {
                 .andExpect(jsonPath("$.categories[1].expenseCount").value(2))
                 .andExpect(jsonPath("$.categories[1].spentAmount").value(1000));
     }
-
-    // --- 비중 반올림 ---
 
     @Test
     void sharePercentRoundsHalfUpToOneDecimal() throws Exception {
@@ -237,8 +229,6 @@ class StatsApiTests {
         expectShares(stats(a, "2026-10"), "SHOPPING:98.7", "FOOD:1.3");
     }
 
-    // --- 홈과 같은 값 ---
-
     @Test
     void currentMonthMatchesHome() throws Exception {
         String a = accessToken("a");
@@ -258,8 +248,6 @@ class StatsApiTests {
         // 49.99% → 표시 49.9
         assertThat(stats).contains("\"usagePercent\":49.9,");
     }
-
-    // --- 서울 월 경계 ---
 
     @Test
     void monthUsesSeoulFirstDayToNextMonthFirstDay() throws Exception {
@@ -293,8 +281,6 @@ class StatsApiTests {
         expectTotals(stats(a, "2026-11"), 500, 1);
         expectTotals(stats(a, "2026-10"), 9000, 1);
     }
-
-    // --- 수용 기준 4: 변경 뒤 재조회와 월 이동 ---
 
     @Test
     void movingExpenseBetweenMonthsUpdatesBothMonths() throws Exception {
@@ -334,8 +320,6 @@ class StatsApiTests {
                 .andExpect(jsonPath("$.categories").isEmpty());
     }
 
-    // --- 사용자 격리 ---
-
     @Test
     void otherUsersExpensesAndBudgetsAreExcluded() throws Exception {
         String a = accessToken("a");
@@ -362,8 +346,6 @@ class StatsApiTests {
                 .andExpect(jsonPath("$.budgetAmount").value(40000));
     }
 
-    // --- 입력 검증과 인증 ---
-
     @Test
     void invalidMonthIsBadRequest() throws Exception {
         String a = accessToken("a");
@@ -379,8 +361,6 @@ class StatsApiTests {
                 .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code").value("UNAUTHORIZED"));
     }
-
-    // --- 도우미 ---
 
     private void setPet(long userId, String petType) {
         jdbc.update("UPDATE users SET pet_type = ? WHERE id = ?", petType, userId);

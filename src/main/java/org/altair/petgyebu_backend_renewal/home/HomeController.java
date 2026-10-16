@@ -10,7 +10,6 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 public class HomeController {
 
-    // month는 YYYY-MM, usagePercent는 소수 한 자리 숫자(예: 49.9, 50.0)다.
     record HomeResponse(String month, String petType, BudgetUsage.PetState petState, long budgetAmount,
             long spentAmount, BigDecimal usagePercent, long budgetBalanceAmount) {
     }

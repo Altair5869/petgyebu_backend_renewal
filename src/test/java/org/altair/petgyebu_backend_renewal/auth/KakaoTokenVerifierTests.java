@@ -86,6 +86,13 @@ class KakaoTokenVerifierTests {
         assertThat(kakao.requestCount()).isZero();
     }
 
+    @Test
+    void tokenWithControlCharactersIsRejectedWithoutCallingKakao() {
+        assertFailed(() -> verifier("123").verify("abc\ndef"));
+        assertFailed(() -> verifier("123").verify("abc\rdef"));
+        assertThat(kakao.requestCount()).isZero();
+    }
+
     private static void assertFailed(org.assertj.core.api.ThrowableAssert.ThrowingCallable call) {
         assertThatThrownBy(call).isInstanceOfSatisfying(ApiException.class, e -> {
             assertThat(e.status()).isEqualTo(HttpStatus.UNAUTHORIZED);

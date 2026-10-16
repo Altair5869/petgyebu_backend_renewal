@@ -34,6 +34,9 @@ class KakaoTokenVerifier {
         if (appId.isEmpty()) {
             throw ApiException.socialLoginUnavailable();
         }
+        if (accessToken.chars().anyMatch(Character::isISOControl)) {
+            throw ApiException.socialLoginFailed();
+        }
         TokenInfo info;
         try {
             info = client.get()

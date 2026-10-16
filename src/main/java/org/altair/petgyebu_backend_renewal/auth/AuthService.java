@@ -7,6 +7,7 @@ import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.user.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 
 @Service
 public class AuthService {
@@ -18,17 +19,24 @@ public class AuthService {
     private final UserRepository users;
     private final TokenIssuer tokens;
     private final Clock clock;
+    private final TransactionTemplate tx;
 
-    public AuthService(SocialIdentityVerifier verifier, UserRepository users, TokenIssuer tokens, Clock clock) {
+    public AuthService(SocialIdentityVerifier verifier, UserRepository users, TokenIssuer tokens, Clock clock,
+            TransactionTemplate tx) {
         this.verifier = verifier;
         this.users = users;
         this.tokens = tokens;
         this.clock = clock;
+        this.tx = tx;
     }
 
-    @Transactional
+    // 공급자 확인은 외부 HTTP 호출이므로 DB 트랜잭션 밖에서 하고, 확인된 뒤에만 짧게 저장한다.
     public Tokens login(Provider provider, String credential) {
         String providerUserId = verifier.verify(provider, credential);
+        return tx.execute(status -> startSession(provider, providerUserId));
+    }
+
+    private Tokens startSession(Provider provider, String providerUserId) {
         OffsetDateTime now = OffsetDateTime.now(clock);
         long userId = users.upsertForLogin(provider.name(), providerUserId, now);
 

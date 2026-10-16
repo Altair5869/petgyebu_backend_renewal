@@ -25,14 +25,14 @@ PostgreSQL 16 (users · expenses · monthly_budgets)
 | 인증 | Spring Security, 카카오·구글 로그인, 서버 자체 액세스·리프레시 토큰 | Security 의존성은 존재한다. 소셜 연동과 토큰 발급·갱신은 구현 대상이다. 액세스 토큰은 HS256 JWT이며 `spring-boot-starter-security-oauth2-resource-server`로 발급·검증한다. 리프레시 토큰은 무작위 값이며 DB에 SHA-256 해시만 저장한다. |
 | 데이터 접근 | Spring Data JDBC, PostgreSQL 16 | JDBC 의존성이 있다. 사용자·월 집계는 명시적 쿼리로 계산한다. JPA·QueryDSL은 도입하지 않는다. |
 | 스키마 | Flyway, PostgreSQL용 Flyway 모듈 | 의존성이 있다. 세 논리 테이블과 제약·인덱스는 마이그레이션으로 관리한다. 앱 실행 시 자동 스키마 생성에 맡기지 않는다. |
-| 설정·비밀값 | `application.yaml`, 환경 변수 | 설정 파일은 저장소에 있다. DB 접속 정보·토큰 서명 키·소셜 인증 비밀값은 소스와 로그에 남기지 않는다. 토큰 서명 키는 `PETGYEBU_JWT_SECRET`(32바이트 이상, `openssl rand -base64 32`처럼 무작위로 생성한 값이며 사람이 정한 문자열은 쓰지 않는다)으로 주입하며 없으면 앱이 시작되지 않는다. |
+| 설정·비밀값 | `application.yaml`, 환경 변수 | 설정 파일은 저장소에 있다. DB 접속 정보·토큰 서명 키·소셜 인증 비밀값은 소스와 로그에 남기지 않는다. 토큰 서명 키는 `PETGYEBU_JWT_SECRET`(32바이트 이상, `openssl rand -base64 32`처럼 무작위로 생성한 값이며 사람이 정한 문자열은 쓰지 않는다)으로 주입하며 없으면 앱이 시작되지 않는다. 카카오 앱 ID(PETGYEBU_KAKAO_APP_ID)와 구글 클라이언트 ID 목록(PETGYEBU_GOOGLE_CLIENT_IDS, 쉼표 구분)은 공개 값이며 비어 있으면 해당 공급자 로그인이 503이다. |
 | 테스트 | JUnit, Spring Boot 테스트, PostgreSQL Testcontainers | 현재 테스트 의존성이 있다. DB 계약을 검증하는 통합 테스트는 Docker의 PostgreSQL을 사용한다. |
 | 배포 계획 | Google Cloud Run + Cloud SQL | 기존 문서의 배포 대상이다. 실제 서비스 생성, 요금·용량·네트워크 설정은 배포 시 검증한다. 현재 구성만으로 배포 완료를 뜻하지 않는다. |
 | 시간 기준 | `Asia/Seoul` | ‘오늘’, 지출 날짜, 월 시작과 다음 달 시작을 동일하게 해석한다. |
 
 ## 2. 인증과 세션
 
-카카오·구글 로그인 뒤 서버가 자체 액세스·리프레시 토큰을 발급한다. 액세스 토큰은 15분, 리프레시 토큰은 마지막 사용 후 30일 유효하다. 갱신할 때 두 토큰을 새로 발급하고 이전 리프레시 토큰은 무효화한다. 공급자별 인가 코드 전달 방식과 앱인토스 연동 상세는 출시 플랫폼 절차를 확인한 뒤 정한다.
+카카오·구글 로그인 뒤 서버가 자체 액세스·리프레시 토큰을 발급한다. 액세스 토큰은 15분, 리프레시 토큰은 마지막 사용 후 30일 유효하다. 갱신할 때 두 토큰을 새로 발급하고 이전 리프레시 토큰은 무효화한다. 카카오 액세스 토큰은 토큰 정보 API로, 구글 ID 토큰은 JWKS로 확인하며 연결 2초·읽기 3초 타임아웃을 둔다. 앱인토스용 토스 로그인은 후속 작업이다.
 
 한 계정에는 활성 로그인 하나만 둔다. 새 로그인은 기존 로그인을 무효화한다. `users.active_session_id`는 로그인 식별자이며 기기 ID가 아니다. 인증 요청은 액세스 토큰의 세션 ID를 현재 사용자 값과 비교해 종료된 로그인을 거부한다. DB에는 원본 리프레시 토큰 대신 해시와 만료 시각을 저장한다. `last_login_time`은 소셜 로그인 성공 시 갱신한다. `device_id`는 MVP에 저장하지 않는다.
 
@@ -59,11 +59,11 @@ DB에는 합의한 `NOT NULL`, 외래 키, `UNIQUE(provider, provider_user_id)`,
 
 - 빈 PostgreSQL에 Flyway 마이그레이션을 적용해 시작한다. 이전 프로젝트의 17개 테이블과 계좌 연동 마이그레이션을 복사하지 않는다.
 - 로컬 실행(`./gradlew bootRun`)은 개발 전용 의존성 `spring-boot-docker-compose`(`testAndDevelopmentOnly`)가 `compose.yaml`의 PostgreSQL 16을 띄우고 접속 정보를 연결한다. 로컬 DB는 `127.0.0.1`에만 열고 비밀번호 없는 trust 인증을 쓴다. 이 의존성은 배포 산출물에 포함되지 않고 테스트에서는 Spring Boot 기본값으로 건너뛰며, 운영 DB 접속 정보는 `SPRING_DATASOURCE_*` 환경 변수로 주입한다.
-- 소셜 연동 전 전체 흐름 확인은 `./gradlew bootTestRun`으로 한다. 테스트 소스의 `LocalDevApplication`이 `credential: "ok:<아무 ID>"`를 받는 가짜 검증기와 실제 시계로 같은 로컬 DB에 붙는다. 배포 jar에는 포함되지 않으며 `bootRun`은 실제 검증기(연동 전 503)를 유지한다.
+- 소셜 연동 전 전체 흐름 확인은 `./gradlew bootTestRun`으로 한다. 테스트 소스의 `LocalDevApplication`이 `credential: "ok:<아무 ID>"`를 받는 가짜 검증기와 실제 시계로 같은 로컬 DB에 붙는다. 배포 jar에는 포함되지 않으며 `bootRun`은 실제 검증기(공급자 설정이 없으면 503)를 유지한다.
 - 로컬·CI에서 `./gradlew test --no-daemon`으로 테스트한다. 사용자별 접근, 입력 검증, 서울 시간대의 월 경계, 50%·80%·100% 상태 경계, 예산 upsert·탈퇴 트랜잭션을 검증한다.
 - Cloud Run·Cloud SQL 배포를 진행할 때 DB 접속 정보·토큰 서명 키·소셜 인증 비밀값을 Secret Manager 또는 배포 환경의 비밀 설정으로 주입한다. 예약 작업이 없다는 가정 아래 인스턴스·CPU·비용 설정은 실제 트래픽에 맞춰 정한다.
 - 계좌 연동, CODEF·금융결제원 SDK, Spring Batch·ShedLock, 금융 API 재시도, FCM, 보상·상점용 저장소는 MVP 구성에 넣지 않는다. 앱의 펫 연출 에셋을 위한 서버 스토리지·CDN도 현재 필수 구성으로 두지 않는다.
 
 ## 6. 후속 확인
 
-앱인토스에 맞춘 카카오·구글 인증 연동 상세와 캐시의 출시 적용·구현 제품은 [개발 기준의 후속 결정](00-renewal-development-guide.md)으로 남긴다. 이 문서의 배포 계획은 인프라 선택을 기록한 것이며, 계정·네트워크·비용을 검증해 실제 배포할 때 운영 설정을 확정한다.
+앱인토스용 토스 로그인과 캐시의 출시 적용·구현 제품은 [개발 기준의 후속 결정](00-renewal-development-guide.md)으로 남긴다. 이 문서의 배포 계획은 인프라 선택을 기록한 것이며, 계정·네트워크·비용을 검증해 실제 배포할 때 운영 설정을 확정한다.

@@ -14,7 +14,7 @@ React Native 앱을 위한 반려동물 가계부 리뉴얼 MVP 백엔드입니�
 
 ### 로컬 실행
 
-`PETGYEBU_JWT_SECRET` 환경 변수(32바이트 이상 무작위 값)를 설정하고 Docker를 켠 뒤 실행합니다.
+`PETGYEBU_JWT_SECRET` 환경 변수(32바이트 이상 무작위 값)를 설정하고 Docker를 켠 뒤 실행합니다. 운영 로그인 확인에는 `PETGYEBU_KAKAO_APP_ID`, `PETGYEBU_GOOGLE_CLIENT_IDS`(공개 값)가 필요합니다. 비어 있으면 해당 공급자 로그인은 503을 반환합니다.
 
 ```bash
 ./gradlew bootRun
@@ -22,7 +22,7 @@ React Native 앱을 위한 반려동물 가계부 리뉴얼 MVP 백엔드입니�
 
 `spring-boot-docker-compose`가 [`compose.yaml`](compose.yaml)의 PostgreSQL 16을 자동으로 띄우고 접속 정보를 연결합니다. 앱을 종료하면 컨테이너도 멈추고 데이터는 `postgres-data` 볼륨에 남습니다. 로컬 DB는 `127.0.0.1:5432`에만 열리며 비밀번호 없이 접속합니다. 초기화하려면 `docker compose down -v`를 실행합니다.
 
-`bootRun`은 실제 소셜 검증기를 쓰므로 Kakao·Google 연동 전에는 로그인이 503을 반환합니다. 로그인부터 탈퇴까지 전체 흐름을 로컬 DB로 확인하려면 같은 환경에서 다음을 실행합니다.
+`bootRun`은 실제 소셜 검증기를 쓰므로 위 공급자 설정이 없으면 로그인이 503을 반환합니다. 로그인부터 탈퇴까지 전체 흐름을 로컬 DB로 확인하려면 같은 환경에서 다음을 실행합니다.
 
 ```bash
 ./gradlew bootTestRun

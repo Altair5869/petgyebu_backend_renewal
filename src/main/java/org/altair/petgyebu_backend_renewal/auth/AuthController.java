@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/auth")
 public class AuthController {
 
-    // credential의 의미는 앱인토스 연동 결정 전까지 잠정이다.
+    // credential: 카카오는 SDK 액세스 토큰, 구글은 ID 토큰.
     record LoginRequest(@NotBlank String credential) {
     }
 

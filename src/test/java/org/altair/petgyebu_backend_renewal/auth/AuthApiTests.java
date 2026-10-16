@@ -78,6 +78,18 @@ class AuthApiTests {
     }
 
     @Test
+    void loginCredentialIsCappedAt4096Characters() throws Exception {
+        login("kakao", "x".repeat(4097))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.fields[0].field").value("credential"));
+        // 4096자는 검증을 통과해 검증기까지 도달한다(가짜 검증기는 "ok:" 아닌 값을 401로 거절).
+        login("kakao", "x".repeat(4096))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("SOCIAL_LOGIN_FAILED"));
+    }
+
+    @Test
     void loginReportsProviderFailures() throws Exception {
         login("kakao", "bad")
                 .andExpect(status().isUnauthorized())

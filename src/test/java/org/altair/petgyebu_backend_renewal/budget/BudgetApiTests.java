@@ -62,8 +62,6 @@ class BudgetApiTests {
         clock.set(TestAuthConfig.START);
     }
 
-    // --- 조회 ---
-
     @Test
     void getUnsetCurrentAndPastMonthReturnsNullAmount() throws Exception {
         String a = accessToken("a");
@@ -98,8 +96,6 @@ class BudgetApiTests {
             expectInvalid(getBudget(a, month), "month");
         }
     }
-
-    // --- 설정·변경 ---
 
     @Test
     void putCreatesThenReplacesCurrentMonthBudgetInOneRow() throws Exception {
@@ -213,8 +209,6 @@ class BudgetApiTests {
         assertThat(budgetCount()).isZero();
     }
 
-    // --- 사용자 격리 ---
-
     @Test
     void budgetsAreIsolatedPerUser() throws Exception {
         String a = accessToken("a");
@@ -233,8 +227,6 @@ class BudgetApiTests {
                 "SELECT user_id || ':' || budget_month::text || ':' || amount FROM monthly_budgets ORDER BY user_id, budget_month",
                 String.class)).containsExactly("1:2026-09-01:90000", "1:2026-10-01:100000", "2:2026-10-01:200000");
     }
-
-    // --- 동시성 ---
 
     @Test
     void concurrentPutsForSameUserAndMonthAllSucceedWithOneRow() throws Exception {
@@ -266,8 +258,6 @@ class BudgetApiTests {
         assertThat(budgetRow().get("amount")).isIn(amounts);
     }
 
-    // --- 인증 ---
-
     @Test
     void budgetEndpointsRequireAuthentication() throws Exception {
         expectUnauthorized(mvc.perform(get("/api/v1/months/2026-10/budget")));
@@ -289,8 +279,6 @@ class BudgetApiTests {
                 });
         assertThat(budgetCount()).isZero();
     }
-
-    // --- 도우미 ---
 
     private int budgetCount() {
         return jdbc.queryForObject("SELECT count(*) FROM monthly_budgets", Integer.class);

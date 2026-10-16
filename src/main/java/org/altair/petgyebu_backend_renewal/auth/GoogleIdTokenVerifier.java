@@ -49,7 +49,7 @@ class GoogleIdTokenVerifier {
                         aud -> aud != null && aud.stream().anyMatch(this.clientIds::contains))));
     }
 
-    // Nimbus 기본 캐시(5분)와 재조회 제한(30초에 한 번)을 쓴다. 모르는 kid가 오면 한 번 다시 가져오고(키 교체 대응),
+    // Nimbus 기본 캐시(5분)와 재조회 제한(30초에 최대 두 번)을 쓴다. 모르는 kid가 오면 한 번 다시 가져오고(키 교체 대응),
     // 제한에 걸리면 방금 받은 키 목록에 없는 kid이므로 일치하는 키 없음(401)으로 본다.
     // 캐시 자체를 못 채운 경우(구글 장애)는 그대로 예외를 던져 503이 된다.
     private static JWKSource<SecurityContext> googleKeys(URI jwkSetUri, Duration connectTimeout, Duration readTimeout) {

@@ -14,7 +14,6 @@ import tools.jackson.databind.JsonNode;
 @RequestMapping("/api/v1/months/{month}/budget")
 public class BudgetController {
 
-    // month는 YYYY-MM. 미설정이면 amount: null이다.
     record BudgetResponse(String month, Long amount) {
     }
 

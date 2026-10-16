@@ -34,7 +34,6 @@ public record BudgetUsage(long budgetAmount, long spentAmount) {
         return PetState.STABLE;
     }
 
-    // spent × 100 ≥ budget × threshold
     private boolean reaches(int threshold) {
         return percent().compareTo(BigDecimal.valueOf(budgetAmount).multiply(BigDecimal.valueOf(threshold))) >= 0;
     }

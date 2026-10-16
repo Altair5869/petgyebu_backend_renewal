@@ -20,7 +20,6 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 public class StatsService {
 
-    // usage는 그 달 예산이 없으면 null이다.
     public record Stats(YearMonth month, long spentAmount, long expenseCount, BudgetUsage usage,
             List<CategoryStat> categories) {
     }

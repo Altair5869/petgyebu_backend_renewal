@@ -1,6 +1,7 @@
 package org.altair.petgyebu_backend_renewal.expense;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
@@ -19,6 +20,7 @@ import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.support.MutableClock;
 import org.altair.petgyebu_backend_renewal.support.TestAuthConfig;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +37,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
+import tools.jackson.databind.node.JsonNodeFactory;
 
 // TestAuthConfig.START = 2026-10-13T00:00Z = 서울 2026-10-13 09:00
 @Testcontainers
@@ -50,6 +53,7 @@ class ExpenseApiTests {
     @Autowired MockMvc mvc;
     @Autowired MutableClock clock;
     @Autowired JdbcTemplate jdbc;
+    @Autowired ExpenseService expenseService;
 
     @BeforeEach
     void reset() {
@@ -560,6 +564,21 @@ class ExpenseApiTests {
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
         }
+    }
+
+    @Test
+    void createAfterUserRowDeletedIsUnauthorized() throws Exception {
+        accessToken("a");
+        // 인증 통과 직후 동시 탈퇴로 사용자 행이 사라진 상황. HTTP는 인증에서 먼저 거절되므로 서비스를 직접 호출한다.
+        jdbc.update("DELETE FROM users WHERE id = 1");
+
+        assertThatThrownBy(() -> expenseService.create(1, JsonNodeFactory.instance.objectNode()
+                        .put("amount", 1000).put("expenseDate", "2026-10-13")))
+                .isInstanceOfSatisfying(ApiException.class, e -> {
+                    assertThat(e.status().value()).isEqualTo(401);
+                    assertThat(e.code()).isEqualTo("UNAUTHORIZED");
+                });
+        assertThat(expenseCount()).isZero();
     }
 
     // --- 도우미 ---

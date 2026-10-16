@@ -14,7 +14,7 @@ React Native 앱을 위한 반려동물 가계부 리뉴얼 MVP 백엔드입니�
 
 ### 로컬 실행
 
-`PETGYEBU_JWT_SECRET` 환경 변수(32바이트 이상 무작위 값)를 설정하고 Docker를 켠 뒤 실행합니다. 운영 로그인 확인에는 `PETGYEBU_KAKAO_APP_ID`, `PETGYEBU_GOOGLE_CLIENT_IDS`(공개 값)가 필요하다. 비어 있으면 해당 공급자 로그인은 503이다.
+`PETGYEBU_JWT_SECRET` 환경 변수(32바이트 이상 무작위 값)를 설정하고 Docker를 켠 뒤 실행합니다. 운영 로그인 확인에는 `PETGYEBU_KAKAO_APP_ID`, `PETGYEBU_GOOGLE_CLIENT_IDS`(공개 값)가 필요합니다. 비어 있으면 해당 공급자 로그인은 503을 반환합니다.
 
 ```bash
 ./gradlew bootRun

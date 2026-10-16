@@ -22,7 +22,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 
 | # | 기능 | 메서드 | 경로 | 요청·응답 핵심 | 데이터 |
 |---:|---|---|---|---|---|
-| 1 | `F-M01` | POST | `/api/v1/auth/login/{provider}` | 카카오·구글 로그인 → `accessToken`, `refreshToken`, `accessExpiresInSeconds`. 본문 `{credential}`, 의미는 잠정 | `users` |
+| 1 | `F-M01` | POST | `/api/v1/auth/login/{provider}` | 카카오·구글 로그인 → `accessToken`, `refreshToken`, `accessExpiresInSeconds`. 본문 `{credential}` — 카카오 액세스 토큰·구글 ID 토큰 | `users` |
 | 2 | `F-M01` | POST | `/api/v1/auth/refresh` | 현재 `refreshToken` → 두 토큰 교체, `accessExpiresInSeconds` | `users` |
 | 3 | `F-M01` | POST | `/api/v1/auth/logout` | 현재 `refreshToken`으로 활성 로그인 종료 → 204 | `users` |
 | 4 | `F-M01` | GET | `/api/v1/users/me` | `id`, `provider`(`KAKAO\|GOOGLE`), `petType`(`CAT\|DOG`); 선택 전 `petType: null` | `users` |
@@ -46,7 +46,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 
 - 액세스 토큰은 15분, 리프레시 토큰은 마지막 사용 후 30일 유효하다. 갱신은 리프레시 토큰을 교체한다. 새 로그인·로그아웃·탈퇴 후 이전 액세스 토큰도 현재 `active_session_id`와 불일치해 거부된다.
 - 앱은 `GET /users/me`로 펫을 확인하고 현재 월 예산을 조회한 뒤 홈에 들어간다. `GET /home`은 현재 월만 반환한다. 펫이 없으면 409 `PET_REQUIRED`, 현재 월 예산이 없으면 409 `BUDGET_REQUIRED`다. 둘 다 없으면 펫 선택을 먼저 안내한다.
-- 공급자는 `KAKAO`, `GOOGLE`만 사용하고 각 공급자의 사용자 ID는 `provider_user_id`에 저장한다. 같은 사람이 다른 공급자를 쓰면 별도 계정이다. 앱인토스에 맞춘 공급자별 인증 전달 상세는 후속 결정이다.
+- 공급자는 `KAKAO`, `GOOGLE`만 사용하고 각 공급자의 사용자 ID는 `provider_user_id`에 저장한다. 같은 사람이 다른 공급자를 쓰면 별도 계정이다. 카카오 토큰은 토큰 정보 API의 app_id 일치로, 구글 ID 토큰은 JWKS 서명·iss·aud·exp로 확인한다. 앱인토스용 토스 로그인은 후속 결정이다. 앱 개발자 참고: 카카오는 SDK의 accessToken, 구글은 idToken을 보낸다. Android에서 idToken을 받으려면 webClientId가 필요하며 그 웹 클라이언트 ID도 PETGYEBU_GOOGLE_CLIENT_IDS에 포함해야 한다.
 
 ### 지출·예산
 

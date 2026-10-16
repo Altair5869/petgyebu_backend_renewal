@@ -107,7 +107,7 @@
 
 ## 8. API 경로와 응답 계약
 
-접두사는 `/api/v1`, `{month}`는 `YYYY-MM`이다. **15개 동작, 11개 고유 경로**다. 로그인 경로의 공급자별 인가 코드 전달 방식은 앱인토스 연동 결정 전까지 잠정이다.
+접두사는 `/api/v1`, `{month}`는 `YYYY-MM`이다. **15개 동작, 11개 고유 경로**다. 로그인 요청의 credential은 카카오 SDK 액세스 토큰·구글 ID 토큰이다(스토어 앱 기준).
 
 | # | 메서드 | 경로 | 확정된 용도 |
 |---:|---|---|---|
@@ -134,7 +134,7 @@
 - 홈은 `month, petType, petState, budgetAmount, spentAmount, usagePercent, budgetBalanceAmount`를 반환한다. 카테고리·지출 목록은 포함하지 않는다.
 - 통계는 `month, budgetAmount, spentAmount, expenseCount, usagePercent, budgetBalanceAmount, categories`를 반환한다. 각 카테고리는 `category, spentAmount, expenseCount, sharePercent`를 가진다. **펫 필드는 통계에 없다.** 예산이 없는 월은 과거·현재 모두 200으로 `budgetAmount, usagePercent, budgetBalanceAmount`만 `null`이다.
 - 로그인과 토큰 갱신 응답은 `accessToken, refreshToken, accessExpiresInSeconds`를 반환한다. 액세스 만료 초는 `900`이다. 갱신 요청은 현재 `refreshToken`을 보낸다. 로그아웃도 현재 리프레시 토큰으로 요청한다.
-- 로그인 요청 본문은 `{credential}`이다. `credential`이 인가 코드인지 공급자 토큰인지는 앱인토스 연동 결정 전까지 잠정이며, 그 전에는 서버가 로그인을 `503 SOCIAL_LOGIN_UNAVAILABLE`로 거부한다. `{provider}`는 `kakao`·`google`이며 대소문자를 구분하지 않는다. 로그인·갱신·로그아웃 세 경로는 `Authorization` 헤더가 있어도 무시하므로 만료된 액세스 토큰으로도 갱신·로그아웃할 수 있다.
+- 로그인 요청 본문은 `{credential}`이다. `credential`은 카카오는 SDK가 발급한 액세스 토큰, 구글은 Google Sign-In의 ID 토큰이다. 서버는 카카오 토큰 정보 API(`app_id` 일치)와 구글 JWKS(서명·`iss`·`aud`·`exp`)로 확인한다. 토큰이 틀리면 `401 SOCIAL_LOGIN_FAILED`, 공급자 장애·응답 이상·해당 공급자 설정 누락이면 `503 SOCIAL_LOGIN_UNAVAILABLE`이다. `{provider}`는 `kakao`·`google`이며 대소문자를 구분하지 않는다. 로그인·갱신·로그아웃 세 경로는 `Authorization` 헤더가 있어도 무시하므로 만료된 액세스 토큰으로도 갱신·로그아웃할 수 있다.
 
 ### 지출 목록과 오류
 
@@ -168,7 +168,7 @@
 
 | 항목 | 지금 남겨두는 이유 |
 |---|---|
-| 앱인토스에 맞춘 카카오·구글 인증 연동 상세 | 출시 플랫폼의 인증·리디렉션 방식을 확인할 때 로그인 요청 본문과 공급자별 절차를 확정한다. 현재 `/auth/login/{provider}`은 잠정 경로다. |
+| 앱인토스 로그인 | 앱인토스 미니앱은 토스 로그인만 허용한다(2026-10-16 확인, [토스 로그인 소개](https://developers-apps-in-toss.toss.im/login/intro.html)). 앱인토스 출시 때 공급자 TOSS(인가 코드 교환·mTLS·연결 끊기 콜백)를 별도로 설계한다. 카카오·구글은 스토어 앱용이다. |
 | 캐시의 출시 적용과 구현 제품 | DB 기준 성능·동시성 측정 및 캐시 실험 결과를 보고 결정한다. |
 
 위 두 항목 이외에 암호학적 토큰 형식, 커서 인코딩, 통계의 동률 처리 구현 등은 이 문서의 **관찰 가능한 계약을 지키는 범위에서** 상세 기술 문서와 구현 단계에서 정한다.

@@ -12,7 +12,6 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
-import java.io.IOException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -99,6 +98,33 @@ class GoogleIdTokenVerifierTests {
     }
 
     @Test
+    void unknownKeyIdsDoNotRefetchKeysEveryTime() throws Exception {
+        GoogleIdTokenVerifier verifier = verifier(List.of(CLIENT_ID));
+        verifier.verify(token(key, "https://accounts.google.com", List.of(CLIENT_ID), NOW.plusSeconds(3600)));
+        int fetchesAfterWarmUp = google.requestCount();
+
+        for (int i = 0; i < 10; i++) {
+            RSAKey unknownKey = new RSAKeyGenerator(2048).keyID("unknown-" + i).generate();
+            assertFailed(() -> verifier.verify(
+                    token(unknownKey, "https://accounts.google.com", List.of(CLIENT_ID), NOW.plusSeconds(3600))));
+        }
+
+        assertThat(google.requestCount() - fetchesAfterWarmUp).isLessThanOrEqualTo(1);
+    }
+
+    @Test
+    void acceptsTokenSignedWithRotatedKey() throws Exception {
+        GoogleIdTokenVerifier verifier = verifier(List.of(CLIENT_ID));
+        verifier.verify(token(key, "https://accounts.google.com", List.of(CLIENT_ID), NOW.plusSeconds(3600)));
+        RSAKey rotatedKey = new RSAKeyGenerator(2048).keyID("k2").generate();
+        google.respond(200, new JWKSet(List.of(key.toPublicJWK(), rotatedKey.toPublicJWK())).toString());
+
+        assertThat(verifier.verify(
+                token(rotatedKey, "https://accounts.google.com", List.of(CLIENT_ID), NOW.plusSeconds(3600))))
+                .isEqualTo("google-sub-1");
+    }
+
+    @Test
     void jwksOutageIsUnavailable() throws Exception {
         String idToken = token(key, "https://accounts.google.com", List.of(CLIENT_ID), NOW.plusSeconds(3600));
 
@@ -107,6 +133,18 @@ class GoogleIdTokenVerifierTests {
 
         google.respond(200, "<html>oops</html>");
         assertUnavailable(() -> verifier(List.of(CLIENT_ID)).verify(idToken));
+    }
+
+    @Test
+    void repeatedJwksOutageStaysUnavailableWhenRefetchIsRateLimited() throws Exception {
+        String idToken = token(key, "https://accounts.google.com", List.of(CLIENT_ID), NOW.plusSeconds(3600));
+        GoogleIdTokenVerifier verifier = verifier(List.of(CLIENT_ID));
+        google.respond(500, "{}");
+
+        for (int i = 0; i < 5; i++) {
+            assertUnavailable(() -> verifier.verify(idToken));
+        }
+        assertThat(google.requestCount()).isLessThanOrEqualTo(2);
     }
 
     @Test

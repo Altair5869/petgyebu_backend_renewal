@@ -142,7 +142,7 @@
 - 커서는 앱이 해석하지 않는 이어보기 표식이며 발급받은 사용자·월에만 유효하다. 월을 바꾸거나 지출을 생성·수정·삭제하면 앱은 커서를 버리고 첫 페이지부터 다시 조회한다. 잘못된 형식이나 다른 사용자·월의 커서는 `400 INVALID_CURSOR`다. `limit`이 1~50 밖이면 보정하지 않고 `400 INVALID_REQUEST`다. `{month}`가 미래 월이거나 2000-01 이전이면 `400 INVALID_REQUEST`다.
 - 앱은 내 정보와 현재 월 예산을 확인한 뒤 홈으로 이동한다. 설정 전 홈 호출은 `409 PET_REQUIRED` 또는 `409 BUDGET_REQUIRED`다. 둘 다 빠졌다면 펫 선택을 먼저 안내한다.
 - 공통 오류 응답은 `code`와 `message`를 가진다. 입력 오류에는 해당 필드 정보를 추가한다. 잘못된 입력은 400, 로그인 필요·무효 토큰은 401, 없거나 다른 사용자의 지출 ID는 구분 없이 `404 EXPENSE_NOT_FOUND`다. 프레임워크 단계 오류도 같은 형식이다: 없는 경로 `404 NOT_FOUND`(인증 후), 지원하지 않는 메서드 `405 METHOD_NOT_ALLOWED`(`Allow` 헤더 포함), 지원하지 않는 Content-Type `415 UNSUPPORTED_MEDIA_TYPE`, 처리되지 않은 서버 오류 `500 INTERNAL_ERROR`(내부 오류 내용은 응답에 넣지 않는다).
-- 인증 관련 오류 코드: 입력 오류 `400 INVALID_REQUEST`(`fields` 포함), 공급자 확인 실패 `401 SOCIAL_LOGIN_FAILED`, 토큰 없음·무효·만료·종료된 로그인 `401 UNAUTHORIZED`(사유 구분 없음), 공급자 연동 전 `503 SOCIAL_LOGIN_UNAVAILABLE`.
+- 인증 관련 오류 코드: 입력 오류 `400 INVALID_REQUEST`(`fields` 포함), 공급자 확인 실패 `401 SOCIAL_LOGIN_FAILED`, 토큰 없음·무효·만료·종료된 로그인 `401 UNAUTHORIZED`(사유 구분 없음), 공급자 장애·응답 이상·설정 누락 `503 SOCIAL_LOGIN_UNAVAILABLE`.
 - 성공 응답은 지출 생성 201, 조회·수정 200, 지출 삭제·로그아웃·탈퇴 204다. 예산 PUT은 생성·변경 모두 200이다.
 
 ## 9. 캐시 실험

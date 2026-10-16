@@ -9,6 +9,14 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
 import com.jayway.jsonpath.JsonPath;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.support.MutableClock;
@@ -91,6 +99,51 @@ class UserApiTests {
         seedRows(2);
 
         withdraw(access).andExpect(status().isNoContent());
+
+        assertThat(counts(1)).containsExactly(0, 0, 0);
+        assertThat(counts(2)).containsExactly(1, 2, 1);
+    }
+
+    // 회귀 방지용: 래치로 출발만 맞추며 트랜잭션이 실제로 겹친다는 보장은 없다.
+    @Test
+    void concurrentWithdrawalsOfSameUserAllCompleteAndDeleteOnlyCallersRows() throws Exception {
+        login("kakao", "ok:k1");
+        login("kakao", "ok:other");
+        seedRows(1);
+        seedRows(2);
+        int threads = 4;
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(threads);
+        try {
+            List<Future<?>> results = new ArrayList<>();
+            for (int i = 0; i < threads; i++) {
+                results.add(pool.submit(() -> {
+                    start.await();
+                    userService.withdraw(1);
+                    return null;
+                }));
+            }
+            start.countDown();
+            for (Future<?> result : results) {
+                result.get(30, TimeUnit.SECONDS);
+            }
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(counts(1)).containsExactly(0, 0, 0);
+        assertThat(counts(2)).containsExactly(1, 2, 1);
+    }
+
+    @Test
+    void withdrawingAlreadyWithdrawnUserCompletesWithoutError() throws Exception {
+        login("kakao", "ok:k1");
+        login("kakao", "ok:other");
+        seedRows(1);
+        seedRows(2);
+        userService.withdraw(1);
+
+        userService.withdraw(1);
 
         assertThat(counts(1)).containsExactly(0, 0, 0);
         assertThat(counts(2)).containsExactly(1, 2, 1);

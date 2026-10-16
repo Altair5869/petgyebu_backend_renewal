@@ -2,6 +2,7 @@ package org.altair.petgyebu_backend_renewal.auth;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Size;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     // credential: 카카오는 SDK 액세스 토큰, 구글은 ID 토큰.
-    record LoginRequest(@NotBlank String credential) {
+    record LoginRequest(@NotBlank @Size(max = 4096) String credential) {
     }
 
     record RefreshTokenRequest(@NotBlank String refreshToken) {

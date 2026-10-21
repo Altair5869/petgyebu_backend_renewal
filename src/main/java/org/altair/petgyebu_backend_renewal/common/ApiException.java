@@ -52,6 +52,11 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.CONFLICT, "BUDGET_REQUIRED", "현재 월 예산을 먼저 설정해야 합니다.", null);
     }
 
+    public static ApiException idempotencyKeyReused() {
+        return new ApiException(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED",
+                "같은 Idempotency-Key로 다른 내용의 지출이 이미 저장되었습니다.", null);
+    }
+
     public HttpStatus status() {
         return status;
     }

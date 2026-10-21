@@ -19,6 +19,15 @@ class DbErrorsTests {
         assertThat(DbErrors.isForeignKeyViolation(new DataIntegrityViolationException("no cause"))).isFalse();
     }
 
+    @Test
+    void detectsUniqueViolationOnlyBySqlState23505() {
+        assertThat(DbErrors.isUniqueViolation(violation("23505"))).isTrue();
+        assertThat(DbErrors.isUniqueViolation(new RuntimeException(violation("23505")))).isTrue();
+
+        assertThat(DbErrors.isUniqueViolation(violation("23503"))).isFalse();
+        assertThat(DbErrors.isUniqueViolation(violation(null))).isFalse();
+    }
+
     private static DataIntegrityViolationException violation(String sqlState) {
         return new DataIntegrityViolationException("x", new SQLException("x", sqlState));
     }

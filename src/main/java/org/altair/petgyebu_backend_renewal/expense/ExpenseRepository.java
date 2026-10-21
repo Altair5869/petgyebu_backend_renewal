@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.Repository;
@@ -13,6 +14,8 @@ public interface ExpenseRepository extends Repository<Expense, Long> {
     Expense save(Expense expense);
 
     Optional<Expense> findByIdAndUserId(long id, long userId);
+
+    Optional<Expense> findByUserIdAndIdempotencyKey(long userId, UUID idempotencyKey);
 
     @Modifying
     @Query("""

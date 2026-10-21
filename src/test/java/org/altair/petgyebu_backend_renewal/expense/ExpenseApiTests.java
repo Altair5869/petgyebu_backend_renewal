@@ -565,7 +565,7 @@ class ExpenseApiTests {
         jdbc.update("DELETE FROM users WHERE id = 1");
 
         assertThatThrownBy(() -> expenseService.create(1, JsonNodeFactory.instance.objectNode()
-                        .put("amount", 1000).put("expenseDate", "2026-10-13")))
+                        .put("amount", 1000).put("expenseDate", "2026-10-13"), null))
                 .isInstanceOfSatisfying(ApiException.class, e -> {
                     assertThat(e.status().value()).isEqualTo(401);
                     assertThat(e.code()).isEqualTo("UNAUTHORIZED");

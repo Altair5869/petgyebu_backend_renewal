@@ -9,6 +9,10 @@ import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.UUID;
+import java.util.regex.Pattern;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.common.DbErrors;
 import org.altair.petgyebu_backend_renewal.common.Months;
@@ -39,24 +43,65 @@ public class ExpenseService {
         this.clock = clock;
     }
 
+    public record CreateResult(Expense expense, boolean created) {
+    }
+
+    private static final Pattern UUID_FORMAT = Pattern.compile(
+            "[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}");
+
     // 생략과 명시적 null을 구분해야 하므로 본문을 JsonNode로 받아 직접 검증한다.
-    public Expense create(long userId, JsonNode body) {
+    // idempotencyKey는 선택이다. 본문 검증이 키 조회보다 먼저다.
+    // 일부러 @Transactional을 쓰지 않는다. 키 충돌로 insert가 실패해도 다음 조회는 새 트랜잭션이다.
+    public CreateResult create(long userId, JsonNode body, String idempotencyKey) {
         requireObject(body);
         long amount = amount(body.get("amount"));
         LocalDate expenseDate = expenseDate(body.get("expenseDate"));
         JsonNode categoryNode = body.get("category");
         Category category = categoryNode == null || categoryNode.isNull() ? Category.OTHER : category(categoryNode);
         String memo = memo(body.get("memo"));
+        UUID key = idempotencyKey == null ? null : idempotencyKey(idempotencyKey);
+        if (key != null) {
+            Optional<Expense> existing = expenses.findByUserIdAndIdempotencyKey(userId, key);
+            if (existing.isPresent()) {
+                return replay(existing.get(), amount, expenseDate, category, memo);
+            }
+        }
         OffsetDateTime now = OffsetDateTime.now(clock);
         try {
-            return expenses.save(new Expense(null, userId, amount, expenseDate, category, memo, now, now));
+            return new CreateResult(
+                    expenses.save(new Expense(null, userId, amount, expenseDate, category, memo, now, now, key)), true);
         } catch (DataIntegrityViolationException e) {
             // 인증 직후 동시 탈퇴로 사용자 행이 사라졌다면 /users/me와 같이 401로 응답한다.
             if (DbErrors.isForeignKeyViolation(e)) {
                 throw ApiException.unauthorized();
             }
+            // 같은 키의 동시 요청이 먼저 저장됐다. 커밋된 행을 다시 읽어 같은 규칙으로 비교한다.
+            if (key != null && DbErrors.isUniqueViolation(e)) {
+                Optional<Expense> existing = expenses.findByUserIdAndIdempotencyKey(userId, key);
+                if (existing.isPresent()) {
+                    return replay(existing.get(), amount, expenseDate, category, memo);
+                }
+            }
             throw e;
         }
+    }
+
+    // 같은 키로 같은 내용이면 기존 지출, 다르면 409.
+    private static CreateResult replay(Expense existing, long amount, LocalDate expenseDate, Category category,
+            String memo) {
+        if (existing.amount() != amount || !existing.expenseDate().equals(expenseDate)
+                || existing.category() != category || !Objects.equals(existing.memo(), memo)) {
+            throw ApiException.idempotencyKeyReused();
+        }
+        return new CreateResult(existing, false);
+    }
+
+    // UUID.fromString은 느슨해서(하이픈 없는 짧은 값 허용) 표준 36자 형식을 직접 확인한다.
+    private static UUID idempotencyKey(String value) {
+        if (!UUID_FORMAT.matcher(value).matches()) {
+            throw ApiException.invalidRequest("Idempotency-Key", "UUID 형식이어야 합니다.");
+        }
+        return UUID.fromString(value);
     }
 
     @Transactional(readOnly = true)
@@ -73,7 +118,7 @@ public class ExpenseService {
                 body.has("expenseDate") ? expenseDate(body.get("expenseDate")) : current.expenseDate(),
                 body.has("category") ? category(body.get("category")) : current.category(),
                 body.has("memo") ? memo(body.get("memo")) : current.memo(),
-                current.createdAt(), OffsetDateTime.now(clock));
+                current.createdAt(), OffsetDateTime.now(clock), current.idempotencyKey());
         if (expenses.update(id, userId, updated.amount(), updated.expenseDate(), updated.category().name(),
                 updated.memo(), updated.updatedAt()) == 0) {
             throw ApiException.expenseNotFound();

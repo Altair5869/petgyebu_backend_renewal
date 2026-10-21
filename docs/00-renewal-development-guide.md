@@ -96,12 +96,12 @@
 | 테이블 | 확정된 주요 필드와 근거 |
 |---|---|
 | `users` | `id`, `provider`(KAKAO/GOOGLE), `provider_user_id`(공급자가 해당 사용자에게 부여한 ID), `pet_type`(온보딩 전 NULL), `created_at`, `last_login_time`, `active_session_id`, `refresh_token_hash`, `refresh_token_expires_at`. 별도의 `provider_id`는 `provider_user_id`와 같은 뜻이므로 두지 않는다. |
-| `expenses` | `id`, `user_id`, `amount`, `expense_date`, `category`, `memo`(`TEXT`), `created_at`, `updated_at`. `amount`는 이 테이블에서 지출액을 뜻한다. |
+| `expenses` | `id`, `user_id`, `amount`, `expense_date`, `category`, `memo`(`TEXT`), `created_at`, `updated_at`. `amount`는 이 테이블에서 지출액을 뜻한다. `idempotency_key`(`UUID`, NULL 허용)는 `(user_id, idempotency_key)`가 NULL이 아닐 때만 유일하다. |
 | `monthly_budgets` | `id`, `user_id`, `budget_month`(연도 포함, 해당 월 1일의 `DATE`), `amount`, `created_at`, `updated_at`. `amount`는 이 테이블에서 월 예산을 뜻한다. |
 
 - `expenses.user_id`와 `monthly_budgets.user_id`는 DB FK를 유지하되 `ON DELETE CASCADE`를 두지 않는다.
 - `UNIQUE(provider, provider_user_id)`와 `UNIQUE(user_id, budget_month)`를 둔다. 동일 사용자·월 예산 PUT의 동시 요청은 단일 upsert로 한 행만 유지한다.
-- 지출 목록을 위해 `(user_id, expense_date DESC, id DESC)` 인덱스를 둔다. 지출 중복 방지 UNIQUE는 두지 않는다.
+- 지출 목록을 위해 `(user_id, expense_date DESC, id DESC)` 인덱스를 둔다. 내용이 같은 지출은 막지 않으며, 지출의 UNIQUE는 재시도 중복 방지용 부분 인덱스 `(user_id, idempotency_key)`(키가 NULL이 아닐 때만)뿐이다.
 - 필수 필드의 `NOT NULL`, 합의한 FK·UNIQUE는 DB에 둔다. **금액 양수, 카테고리 7개, `budget_month`의 월 첫날 정규화 같은 업무 규칙은 애플리케이션에서 검증**하며 DB `CHECK`는 두지 않는다. API를 거치지 않는 직접 DB 변경은 이 검증을 우회하므로 마이그레이션·운영 절차에서 별도 확인한다.
 - `budget_month`는 단순한 월 번호가 아니다. API의 `YYYY-MM`을 서버가 해당 월 1일로 변환해 저장한다. 날짜·금액·카테고리 검증과 탈퇴 트랜잭션은 테스트한다.
 
@@ -120,7 +120,7 @@
 | 7 | GET | `/api/v1/home` | 현재 월 펫·금액 요약 |
 | 8 | GET | `/api/v1/months/{month}/budget` | 해당 월 예산 조회, 미설정 시 `amount: null`. `{month}`는 지출 목록과 같이 2000-01부터 서울 기준 현재 월까지의 `YYYY-MM`만 허용하고 그 외는 400 `INVALID_REQUEST`(`month`) |
 | 9 | PUT | `/api/v1/months/{month}/budget` | **현재 월만** 예산 생성·변경. 과거·미래 월과 형식 오류는 400 `INVALID_REQUEST`(`month`) |
-| 10 | POST | `/api/v1/expenses` | 지출 생성 |
+| 10 | POST | `/api/v1/expenses` | 지출 생성. 선택 헤더 `Idempotency-Key`(UUID)가 있으면 같은 사용자·키·내용의 재시도는 새로 만들지 않고 200과 기존 지출을 돌려준다 |
 | 11 | GET | `/api/v1/months/{month}/expenses` | 지출 커서 목록 |
 | 12 | GET | `/api/v1/expenses/{expenseId}` | 지출 단건 조회·수정 초기값 |
 | 13 | PATCH | `/api/v1/expenses/{expenseId}` | 지출 일부 수정, 날짜의 월 이동 가능 |
@@ -142,8 +142,9 @@
 - 커서는 앱이 해석하지 않는 이어보기 표식이며 발급받은 사용자·월에만 유효하다. 월을 바꾸거나 지출을 생성·수정·삭제하면 앱은 커서를 버리고 첫 페이지부터 다시 조회한다. 잘못된 형식이나 다른 사용자·월의 커서는 `400 INVALID_CURSOR`다. `limit`이 1~50 밖이면 보정하지 않고 `400 INVALID_REQUEST`다. `{month}`가 미래 월이거나 2000-01 이전이면 `400 INVALID_REQUEST`다.
 - 앱은 내 정보와 현재 월 예산을 확인한 뒤 홈으로 이동한다. 설정 전 홈 호출은 `409 PET_REQUIRED` 또는 `409 BUDGET_REQUIRED`다. 둘 다 빠졌다면 펫 선택을 먼저 안내한다.
 - 공통 오류 응답은 `code`와 `message`를 가진다. 입력 오류에는 해당 필드 정보를 추가한다. 잘못된 입력은 400, 로그인 필요·무효 토큰은 401, 없거나 다른 사용자의 지출 ID는 구분 없이 `404 EXPENSE_NOT_FOUND`다. 프레임워크 단계 오류도 같은 형식이다: 없는 경로 `404 NOT_FOUND`(인증 후), 지원하지 않는 메서드 `405 METHOD_NOT_ALLOWED`(`Allow` 헤더 포함), 지원하지 않는 Content-Type `415 UNSUPPORTED_MEDIA_TYPE`, 처리되지 않은 서버 오류 `500 INTERNAL_ERROR`(내부 오류 내용은 응답에 넣지 않는다).
+- `POST /expenses`의 `Idempotency-Key` 헤더는 선택이며 없으면 매번 새 지출을 만든다. 값은 표준 36자 UUID(대소문자 무관)이며 형식이 틀리면 `400 INVALID_REQUEST`(`Idempotency-Key`)다. 본문 검증이 키 조회보다 먼저다. 같은 사용자·같은 키에 정규화 후 `amount`·`expenseDate`·`category`·`memo`가 같으면 `200`과 기존 지출, 본문이 다르면 `409 IDEMPOTENCY_KEY_REUSED`다. 지출을 삭제하면 그 키로 다시 `201`로 만들 수 있다.
 - 인증 관련 오류 코드: 입력 오류 `400 INVALID_REQUEST`(`fields` 포함), 공급자 확인 실패 `401 SOCIAL_LOGIN_FAILED`, 토큰 없음·무효·만료·종료된 로그인 `401 UNAUTHORIZED`(사유 구분 없음), 공급자 장애·응답 이상·설정 누락 `503 SOCIAL_LOGIN_UNAVAILABLE`.
-- 성공 응답은 지출 생성 201, 조회·수정 200, 지출 삭제·로그아웃·탈퇴 204다. 예산 PUT은 생성·변경 모두 200이다.
+- 성공 응답은 지출 생성 201(같은 `Idempotency-Key` 재시도는 200), 조회·수정 200, 지출 삭제·로그아웃·탈퇴 204다. 예산 PUT은 생성·변경 모두 200이다.
 
 ## 9. 캐시 실험
 

@@ -64,7 +64,8 @@ class FlywayBaselineSchemaTests {
                 "category", "character varying(20) NO",
                 "memo", "text YES",
                 "created_at", "timestamp with time zone NO",
-                "updated_at", "timestamp with time zone NO"));
+                "updated_at", "timestamp with time zone NO",
+                "idempotency_key", "uuid YES"));
 
         assertThat(columns("monthly_budgets")).containsExactlyInAnyOrderEntriesOf(Map.of(
                 "id", "bigint NO",

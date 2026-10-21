@@ -2,6 +2,7 @@ package org.altair.petgyebu_backend_renewal.expense;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.UUID;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
 
@@ -15,5 +16,6 @@ public record Expense(
         Category category,
         String memo,
         OffsetDateTime createdAt,
-        OffsetDateTime updatedAt) {
+        OffsetDateTime updatedAt,
+        UUID idempotencyKey) {
 }

@@ -101,7 +101,7 @@
 
 - `expenses.user_id`와 `monthly_budgets.user_id`는 DB FK를 유지하되 `ON DELETE CASCADE`를 두지 않는다.
 - `UNIQUE(provider, provider_user_id)`와 `UNIQUE(user_id, budget_month)`를 둔다. 동일 사용자·월 예산 PUT의 동시 요청은 단일 upsert로 한 행만 유지한다.
-- 지출 목록을 위해 `(user_id, expense_date DESC, id DESC)` 인덱스를 둔다. 지출 중복 방지 UNIQUE는 두지 않는다.
+- 지출 목록을 위해 `(user_id, expense_date DESC, id DESC)` 인덱스를 둔다. 내용이 같은 지출은 막지 않으며, 지출의 UNIQUE는 재시도 중복 방지용 부분 인덱스 `(user_id, idempotency_key)`(키가 NULL이 아닐 때만)뿐이다.
 - 필수 필드의 `NOT NULL`, 합의한 FK·UNIQUE는 DB에 둔다. **금액 양수, 카테고리 7개, `budget_month`의 월 첫날 정규화 같은 업무 규칙은 애플리케이션에서 검증**하며 DB `CHECK`는 두지 않는다. API를 거치지 않는 직접 DB 변경은 이 검증을 우회하므로 마이그레이션·운영 절차에서 별도 확인한다.
 - `budget_month`는 단순한 월 번호가 아니다. API의 `YYYY-MM`을 서버가 해당 월 1일로 변환해 저장한다. 날짜·금액·카테고리 검증과 탈퇴 트랜잭션은 테스트한다.
 

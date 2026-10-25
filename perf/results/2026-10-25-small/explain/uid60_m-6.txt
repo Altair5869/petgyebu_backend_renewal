@@ -1,0 +1,90 @@
+== sumAmount
+                                                      QUERY PLAN                                                       
+-----------------------------------------------------------------------------------------------------------------------
+ Aggregate (actual time=0.076..0.076 rows=1 loops=1)
+   Buffers: shared hit=33
+   ->  Index Scan using ix_expenses_user_date_id on expenses (actual time=0.009..0.071 rows=30 loops=1)
+         Index Cond: ((user_id = 60) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date))
+         Buffers: shared hit=33
+ Planning:
+   Buffers: shared hit=25
+ Planning Time: 0.064 ms
+ Execution Time: 0.089 ms
+(9 rows)
+
+== sumByCategory
+                                                         QUERY PLAN                                                          
+-----------------------------------------------------------------------------------------------------------------------------
+ GroupAggregate (actual time=0.032..0.036 rows=7 loops=1)
+   Group Key: category
+   Buffers: shared hit=36
+   ->  Sort (actual time=0.028..0.030 rows=30 loops=1)
+         Sort Key: category
+         Sort Method: quicksort  Memory: 26kB
+         Buffers: shared hit=36
+         ->  Index Scan using ix_expenses_user_date_id on expenses (actual time=0.003..0.012 rows=30 loops=1)
+               Index Cond: ((user_id = 60) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date))
+               Buffers: shared hit=33
+ Planning:
+   Buffers: shared hit=23
+ Planning Time: 0.046 ms
+ Execution Time: 0.047 ms
+(14 rows)
+
+== findFirstPage (limit 21)
+                                                      QUERY PLAN                                                       
+-----------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.003..0.008 rows=21 loops=1)
+   Buffers: shared hit=24
+   ->  Index Scan using ix_expenses_user_date_id on expenses (actual time=0.003..0.007 rows=21 loops=1)
+         Index Cond: ((user_id = 60) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date))
+         Buffers: shared hit=24
+ Planning:
+   Buffers: shared hit=13
+ Planning Time: 0.039 ms
+ Execution Time: 0.012 ms
+(9 rows)
+
+== findPageAfter (limit 21)
+                                                                                     QUERY PLAN                                                                                      
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.003..0.006 rows=10 loops=1)
+   Buffers: shared hit=13
+   ->  Index Scan using ix_expenses_user_date_id on expenses (actual time=0.003..0.005 rows=10 loops=1)
+         Index Cond: ((user_id = 60) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date) AND (ROW(expense_date, id) < ROW('2026-04-11'::date, 208743)))
+         Buffers: shared hit=13
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.027 ms
+ Execution Time: 0.013 ms
+(9 rows)
+
+== monthlyBudget find
+                                                 QUERY PLAN                                                  
+-------------------------------------------------------------------------------------------------------------
+ Index Scan using uq_monthly_budgets_user_month on monthly_budgets (actual time=0.008..0.009 rows=1 loops=1)
+   Index Cond: ((user_id = 60) AND (budget_month = '2026-04-01'::date))
+   Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=49
+ Planning Time: 0.058 ms
+ Execution Time: 0.011 ms
+(7 rows)
+
+== hasActiveSession
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Result (actual time=0.014..0.014 rows=1 loops=1)
+   Buffers: shared hit=3
+   InitPlan 1 (returns $0)
+     ->  Index Scan using users_pkey on users (actual time=0.013..0.013 rows=0 loops=1)
+           Index Cond: (id = 60)
+           Filter: (active_session_id = gen_random_uuid())
+           Rows Removed by Filter: 1
+           Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=43
+ Planning Time: 0.061 ms
+ Execution Time: 0.018 ms
+(12 rows)
+

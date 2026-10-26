@@ -1,3 +1,12 @@
 spring:
   application:
     name: petgyebu_backend_renewal
+
+petgyebu:
+  jwt:
+    secret: ${PETGYEBU_JWT_SECRET:}
+  social:
+    kakao:
+      app-id: ${PETGYEBU_KAKAO_APP_ID:}
+    google:
+      client-ids: ${PETGYEBU_GOOGLE_CLIENT_IDS:}

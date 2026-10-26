@@ -1,0 +1,16 @@
+# 로컬 개발 전용 DB. `./gradlew bootRun` 시 spring-boot-docker-compose가 자동으로 띄우고 접속 정보를 연결한다.
+# 비밀번호 없이 trust 인증을 쓰므로 포트는 이 컴퓨터(127.0.0.1)에만 연다.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: petgyebu
+      POSTGRES_USER: petgyebu
+      POSTGRES_HOST_AUTH_METHOD: trust
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+volumes:
+  postgres-data:

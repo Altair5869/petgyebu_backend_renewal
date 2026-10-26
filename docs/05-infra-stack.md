@@ -1,6 +1,6 @@
 # 인프라·기술 스택: Petgyebu 리뉴얼 MVP
 
-- 갱신: 2026-10-11
+- 갱신: 2026-10-26
 - 기준: [리뉴얼 개발 기준](00-renewal-development-guide.md), 저장소의 `build.gradle`·`AGENTS.md`
 - 상태: 현재 저장소의 기술 구성과 MVP 구현 기준. 배포 완료 상태를 뜻하지 않는다.
 
@@ -27,7 +27,7 @@ PostgreSQL 16 (users · expenses · monthly_budgets)
 | 스키마 | Flyway, PostgreSQL용 Flyway 모듈 | 의존성이 있다. 세 논리 테이블과 제약·인덱스는 마이그레이션으로 관리한다. 앱 실행 시 자동 스키마 생성에 맡기지 않는다. |
 | 설정·비밀값 | `application.yaml`, 환경 변수 | 설정 파일은 저장소에 있다. DB 접속 정보·토큰 서명 키·소셜 인증 비밀값은 소스와 로그에 남기지 않는다. 토큰 서명 키는 `PETGYEBU_JWT_SECRET`(32바이트 이상, `openssl rand -base64 32`처럼 무작위로 생성한 값이며 사람이 정한 문자열은 쓰지 않는다)으로 주입하며 없으면 앱이 시작되지 않는다. 카카오 앱 ID(PETGYEBU_KAKAO_APP_ID)와 구글 클라이언트 ID 목록(PETGYEBU_GOOGLE_CLIENT_IDS, 쉼표 구분)은 공개 값이며 비어 있으면 해당 공급자 로그인이 503이다. |
 | 테스트 | JUnit, Spring Boot 테스트, PostgreSQL Testcontainers | 현재 테스트 의존성이 있다. DB 계약을 검증하는 통합 테스트는 Docker의 PostgreSQL을 사용한다. |
-| 배포 계획 | Google Cloud Run + Cloud SQL | 기존 문서의 배포 대상이다. 실제 서비스 생성, 요금·용량·네트워크 설정은 배포 시 검증한다. 현재 구성만으로 배포 완료를 뜻하지 않는다. |
+| 배포 계획 | Google Cloud Run(서울) + PostgreSQL 16. 초기 DB는 Supabase Free(서울), 사용자가 늘면 Cloud SQL | 비용을 줄이려고 단계별로 구성한다(5절). 실제 서비스 생성, 요금·용량·네트워크 설정은 배포 시 검증한다. 현재 구성만으로 배포 완료를 뜻하지 않는다. |
 | 시간 기준 | `Asia/Seoul` | ‘오늘’, 지출 날짜, 월 시작과 다음 달 시작을 동일하게 해석한다. |
 
 ## 2. 인증과 세션
@@ -70,7 +70,12 @@ DB에는 합의한 `NOT NULL`, 외래 키, `UNIQUE(provider, provider_user_id)`,
 - 로컬 실행(`./gradlew bootRun`)은 개발 전용 의존성 `spring-boot-docker-compose`(`testAndDevelopmentOnly`)가 `compose.yaml`의 PostgreSQL 16을 띄우고 접속 정보를 연결한다. 로컬 DB는 `127.0.0.1`에만 열고 비밀번호 없는 trust 인증을 쓴다. 이 의존성은 배포 산출물에 포함되지 않고 테스트에서는 Spring Boot 기본값으로 건너뛰며, 운영 DB 접속 정보는 `SPRING_DATASOURCE_*` 환경 변수로 주입한다.
 - 소셜 연동 전 전체 흐름 확인은 `./gradlew bootTestRun`으로 한다. 테스트 소스의 `LocalDevApplication`이 `credential: "ok:<아무 ID>"`를 받는 가짜 검증기와 실제 시계로 같은 로컬 DB에 붙는다. 배포 jar에는 포함되지 않으며 `bootRun`은 실제 검증기(공급자 설정이 없으면 503)를 유지한다.
 - 로컬·CI에서 `./gradlew test --no-daemon`으로 테스트한다. 사용자별 접근, 입력 검증, 서울 시간대의 월 경계, 50%·80%·100% 상태 경계, 예산 upsert·탈퇴 트랜잭션을 검증한다.
-- Cloud Run·Cloud SQL 배포를 진행할 때 DB 접속 정보·토큰 서명 키·소셜 인증 비밀값을 Secret Manager 또는 배포 환경의 비밀 설정으로 주입한다. 예약 작업이 없다는 가정 아래 인스턴스·CPU·비용 설정은 실제 트래픽에 맞춰 정한다.
+- 배포는 비용에 맞춰 단계별로 구성한다. 앱 서버는 처음부터 Cloud Run(`asia-northeast3`, 요청 기반 과금, 최소 인스턴스 0)에 두고 무료 사용량 안에서 운영하는 것을 목표로 한다. 최소 인스턴스 0이면 한동안 요청이 없던 뒤 첫 요청은 JVM 기동 시간만큼 늦다. 불편하면 최소 인스턴스를 1로 올린다. Vercel·Cloudflare Workers는 JVM을 실행하지 못해 제외했다.
+  1. 출시 초기: DB는 Supabase Free(서울 리전, 500MB). 7일 동안 활동이 없으면 일시정지되어 다시 켜기 전까지 API가 실패한다. 무료 플랜의 백업에 기대지 않고 `pg_dump`로 정기 백업을 받는다.
+  2. 사용자 증가 또는 무료 한도 근접: Cloud SQL for PostgreSQL 16(같은 리전, `db-f1-micro`부터. 공유 코어라 SLA 대상이 아니다)으로 옮긴다. 스키마는 Flyway로 같게 만들고 데이터는 `pg_dump`·`pg_restore`로 옮긴다. Supabase 유료 플랜보다 Cloud SQL 소형 인스턴스가 싸다.
+- DB 접속은 `SPRING_DATASOURCE_*`만 바꾼다. Supabase는 세션 풀러로 연결하고(직접 연결은 IPv6 전용이고, 트랜잭션 풀러는 pgJDBC의 서버 측 prepared statement와 충돌한다), Hikari 풀 크기와 Cloud Run 최대 인스턴스 수를 DB 연결 한도 안에서 함께 정한다.
+- DB 접속 정보·토큰 서명 키는 Secret Manager로 주입한다. 카카오 앱 ID·구글 클라이언트 ID는 공개 값이라 일반 환경 변수로 둔다. 예약 작업이 없다는 가정 아래 인스턴스·CPU·비용 설정은 실제 트래픽에 맞춰 정한다.
+- 해외 사업자(Google·Supabase)가 개인정보를 처리하므로 개인정보처리방침에 처리 위탁·국외 이전 내용을 적는다.
 - 계좌 연동, CODEF·금융결제원 SDK, Spring Batch·ShedLock, 금융 API 재시도, FCM, 보상·상점용 저장소는 MVP 구성에 넣지 않는다. 앱의 펫 연출 에셋을 위한 서버 스토리지·CDN도 현재 필수 구성으로 두지 않는다.
 
 ## 6. 후속 확인

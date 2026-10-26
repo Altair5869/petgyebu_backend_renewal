@@ -75,6 +75,7 @@ DB에는 합의한 `NOT NULL`, 외래 키, `UNIQUE(provider, provider_user_id)`,
   2. 사용자 증가 또는 무료 한도 근접: Cloud SQL for PostgreSQL 16(같은 리전, `db-f1-micro`부터. 공유 코어라 SLA 대상이 아니다)으로 옮긴다. 스키마는 Flyway로 같게 만들고 데이터는 `pg_dump`·`pg_restore`로 옮긴다. Supabase 유료 플랜보다 Cloud SQL 소형 인스턴스가 싸다.
 - DB 접속은 `SPRING_DATASOURCE_*`만 바꾼다. Supabase는 세션 풀러로 연결하고(직접 연결은 IPv6 전용이고, 트랜잭션 풀러는 pgJDBC의 서버 측 prepared statement와 충돌한다), Hikari 풀 크기와 Cloud Run 최대 인스턴스 수를 DB 연결 한도 안에서 함께 정한다.
 - DB 접속 정보·토큰 서명 키는 Secret Manager로 주입한다. 카카오 앱 ID·구글 클라이언트 ID는 공개 값이라 일반 환경 변수로 둔다. 예약 작업이 없다는 가정 아래 인스턴스·CPU·비용 설정은 실제 트래픽에 맞춰 정한다.
+- 계정 설정과 배포 절차는 [배포 절차](11-deploy-runbook.md)를 따른다. 배포 이미지는 `Dockerfile`, 배포는 `.github/workflows/deploy.yml`(`v*` 태그 또는 `main` 수동 실행)이다. Supabase 신규 프로젝트는 PostgreSQL 17이 기본이며 현재 마이그레이션이 PG 17에서 적용되는 것을 확인했다.
 - 해외 사업자(Google·Supabase)가 개인정보를 처리하므로 개인정보처리방침에 처리 위탁·국외 이전 내용을 적는다.
 - 계좌 연동, CODEF·금융결제원 SDK, Spring Batch·ShedLock, 금융 API 재시도, FCM, 보상·상점용 저장소는 MVP 구성에 넣지 않는다. 앱의 펫 연출 에셋을 위한 서버 스토리지·CDN도 현재 필수 구성으로 두지 않는다.
 

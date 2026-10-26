@@ -1,0 +1,65 @@
+name: Deploy
+
+# v* 태그 push 또는 수동 실행 때만 Cloud Run에 배포한다. 사전 설정은 docs/11-deploy-runbook.md를 따른다.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-24.04
+    environment: production
+    env:
+      REGISTRY: ${{ vars.GCP_REGION }}-docker.pkg.dev
+      IMAGE: ${{ vars.GCP_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/petgyebu/backend:${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '25'
+      - name: Run tests
+        run: ./gradlew test --no-daemon
+
+      - uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.GCP_WIF_PROVIDER }}
+          service_account: ${{ vars.GCP_DEPLOY_SA }}
+      - uses: google-github-actions/setup-gcloud@aa5489c8933f4cc7a4f7d45035b3b1440c9c10db # v3.0.1
+
+      - name: Build and push image
+        run: |
+          gcloud auth configure-docker "$REGISTRY" --quiet
+          docker build -t "$IMAGE" .
+          docker push "$IMAGE"
+
+      - uses: google-github-actions/deploy-cloudrun@2028e2d7d30a78c6910e0632e48dd561b064884d # v3.0.1
+        with:
+          service: petgyebu-backend
+          project_id: ${{ vars.GCP_PROJECT_ID }}
+          region: ${{ vars.GCP_REGION }}
+          image: ${{ env.IMAGE }}
+          flags: >-
+            --service-account=${{ vars.GCP_RUNTIME_SA }}
+            --allow-unauthenticated
+            --cpu=1 --memory=1Gi --cpu-boost
+            --min-instances=0 --max-instances=2
+          env_vars: |
+            SPRING_DATASOURCE_URL="${{ vars.SPRING_DATASOURCE_URL }}"
+            SPRING_DATASOURCE_USERNAME=${{ vars.SPRING_DATASOURCE_USERNAME }}
+            SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE=3
+            PETGYEBU_KAKAO_APP_ID=${{ vars.PETGYEBU_KAKAO_APP_ID }}
+            PETGYEBU_GOOGLE_CLIENT_IDS="${{ vars.PETGYEBU_GOOGLE_CLIENT_IDS }}"
+          secrets: |
+            SPRING_DATASOURCE_PASSWORD=petgyebu-db-password:latest
+            PETGYEBU_JWT_SECRET=petgyebu-jwt-secret:latest

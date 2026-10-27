@@ -1,8 +1,10 @@
 package org.altair.petgyebu_backend_renewal.user;
 
 import java.util.Set;
+import org.altair.petgyebu_backend_renewal.budget.MonthlyBudgetRepository;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.common.DbErrors;
+import org.altair.petgyebu_backend_renewal.expense.ExpenseRepository;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,10 +18,15 @@ public class UserService {
     private static final int WITHDRAW_ATTEMPTS = 3;
 
     private final UserRepository users;
+    private final ExpenseRepository expenses;
+    private final MonthlyBudgetRepository budgets;
     private final TransactionTemplate tx;
 
-    public UserService(UserRepository users, TransactionTemplate tx) {
+    public UserService(UserRepository users, ExpenseRepository expenses, MonthlyBudgetRepository budgets,
+            TransactionTemplate tx) {
         this.users = users;
+        this.expenses = expenses;
+        this.budgets = budgets;
         this.tx = tx;
     }
 
@@ -35,8 +42,8 @@ public class UserService {
         for (int attempt = 1; ; attempt++) {
             try {
                 tx.executeWithoutResult(status -> {
-                    users.deleteExpensesOf(userId);
-                    users.deleteMonthlyBudgetsOf(userId);
+                    expenses.deleteAllOfUser(userId);
+                    budgets.deleteAllOfUser(userId);
                     users.deleteUser(userId);
                 });
                 return;

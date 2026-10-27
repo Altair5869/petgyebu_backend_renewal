@@ -30,6 +30,11 @@ public interface ExpenseRepository extends Repository<Expense, Long> {
     @Query("DELETE FROM expenses WHERE id = :id AND user_id = :userId")
     int delete(long id, long userId);
 
+    // 탈퇴 전용. 사용자의 지출 전체를 지운다.
+    @Modifying
+    @Query("DELETE FROM expenses WHERE user_id = :userId")
+    int deleteAllOfUser(long userId);
+
     // 사용자·월 [from, to)의 카테고리·금액 행. 홈과 월 통계가 Service에서 집계한다.
     @Query("""
             SELECT category, amount FROM expenses

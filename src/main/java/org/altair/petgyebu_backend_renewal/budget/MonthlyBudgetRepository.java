@@ -3,6 +3,7 @@ package org.altair.petgyebu_backend_renewal.budget;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Optional;
+import org.springframework.data.jdbc.repository.query.Modifying;
 import org.springframework.data.jdbc.repository.query.Query;
 import org.springframework.data.repository.Repository;
 
@@ -20,4 +21,9 @@ public interface MonthlyBudgetRepository extends Repository<MonthlyBudget, Long>
             RETURNING *
             """)
     MonthlyBudget upsert(long userId, LocalDate budgetMonth, long amount, OffsetDateTime now);
+
+    // 탈퇴 전용. 사용자의 월 예산 전체를 지운다.
+    @Modifying
+    @Query("DELETE FROM monthly_budgets WHERE user_id = :userId")
+    int deleteAllOfUser(long userId);
 }

@@ -107,7 +107,7 @@
 
 ## 8. API 경로와 응답 계약
 
-접두사는 `/api/v1`, `{month}`는 `YYYY-MM`이다. **15개 동작, 11개 고유 경로**다. 로그인 요청의 credential은 카카오 SDK 액세스 토큰·구글 ID 토큰이다(스토어 앱 기준).
+접두사는 `/api/v1`, `{month}`는 `YYYY-MM`이다. **16개 동작, 12개 고유 경로**다. 로그인 요청의 credential은 카카오 SDK 액세스 토큰·구글 ID 토큰이다(스토어 앱 기준).
 
 | # | 메서드 | 경로 | 확정된 용도 |
 |---:|---|---|---|
@@ -126,6 +126,7 @@
 | 13 | PATCH | `/api/v1/expenses/{expenseId}` | 지출 일부 수정, 날짜의 월 이동 가능 |
 | 14 | DELETE | `/api/v1/expenses/{expenseId}` | 지출 삭제 |
 | 15 | GET | `/api/v1/months/{month}/stats` | 현재·과거 월 숫자 통계 |
+| 16 | GET | `/api/v1/insights` | 서울 기준 오늘의 카테고리별 이번 주·지난주 같은 요일 범위 비교와 현재 월 예산 소진 예측. 요청 파라미터 없음, 펫·예산 미설정이어도 200 |
 
 ### 공통 응답 필드
 
@@ -133,8 +134,24 @@
 - 예산 GET/PUT은 `{month, amount}`를 반환한다. PUT 요청은 `{amount}`다. 미설정 과거 월은 `amount: null`이다.
 - 홈은 `month, petType, petState, budgetAmount, spentAmount, usagePercent, budgetBalanceAmount`를 반환한다. 카테고리·지출 목록은 포함하지 않는다.
 - 통계는 `month, budgetAmount, spentAmount, expenseCount, usagePercent, budgetBalanceAmount, categories`를 반환한다. 각 카테고리는 `category, spentAmount, expenseCount, sharePercent`를 가진다. **펫 필드는 통계에 없다.** 예산이 없는 월은 과거·현재 모두 200으로 `budgetAmount, usagePercent, budgetBalanceAmount`만 `null`이다.
+- 인사이트는 `today, weekly, forecast`를 반환한다. `weekly`는 `thisWeek{from,to}`, `lastWeek{from,to}`(월요일 시작 달력 주, 이번 주 월요일~오늘과 7일 전 같은 요일 범위, 양 끝 포함)와 `categories`(`category, thisWeekAmount, lastWeekAmount, changeAmount = 이번 주 - 지난주`)를 가진다. `categories`는 두 범위 중 한쪽에라도 지출이 있는 카테고리만 `changeAmount` 내림차순·동률 `Category` 선언 순서이며 지출이 없으면 빈 배열이다. `forecast`는 `status, dailyAverageAmount, exhaustionDate`를 가진다. 인증 실패 401 외 오류 응답은 없다.
 - 로그인과 토큰 갱신 응답은 `accessToken, refreshToken, accessExpiresInSeconds`를 반환한다. 액세스 만료 초는 `900`이다. 갱신 요청은 현재 `refreshToken`을 보낸다. 로그아웃도 현재 리프레시 토큰으로 요청한다.
 - 로그인 요청 본문은 `{credential}`이다. `credential`은 4,096자 이하이며 넘으면 공급자 호출 전에 `400 INVALID_REQUEST`(`credential`)이다. `credential`은 카카오는 SDK가 발급한 액세스 토큰, 구글은 Google Sign-In의 ID 토큰이다. 서버는 카카오 토큰 정보 API(`app_id` 일치)와 구글 JWKS(서명·`iss`·`aud`·`exp`)로 확인한다. 토큰이 틀리면 `401 SOCIAL_LOGIN_FAILED`, 공급자 장애·응답 이상·해당 공급자 설정 누락이면 `503 SOCIAL_LOGIN_UNAVAILABLE`이다. `{provider}`는 `kakao`·`google`이며 대소문자를 구분하지 않는다. 로그인·갱신·로그아웃 세 경로는 `Authorization` 헤더가 있어도 무시하므로 만료된 액세스 토큰으로도 갱신·로그아웃할 수 있다.
+
+### 예산 소진 예측 (`forecast`)
+
+`d` = 서울 기준 오늘의 일, `spent` = 현재 월 1일~오늘 지출 합계(홈 `spentAmount`와 같다), `budget` = 현재 월 예산. 아래 순서로 처음 맞는 상태 하나다.
+
+| 순서 | 조건 | `status` | `dailyAverageAmount` | `exhaustionDate` |
+|---|---|---|---|---|
+| 1 | 현재 월 예산 없음 | `NO_BUDGET` | `null` | `null` |
+| 2 | `spent >= budget` | `BUDGET_REACHED` | `null` | `null` |
+| 3 | `d <= 3` | `TOO_EARLY` | `null` | `null` |
+| 4 | `spent == 0` | `WITHIN_BUDGET` | `0` | `null` |
+| 5 | `n = ceil(budget × d / spent)`가 그 달 일수 이하 | `WILL_EXHAUST` | `floor(spent / d)` | 그 달 `n`일 |
+| 6 | 그 외 | `WITHIN_BUDGET` | `floor(spent / d)` | `null` |
+
+- `n`은 정수 올림 나눗셈으로 계산하며 `n > d`다. 정확히 그 달 마지막 날에 예산에 닿으면 `WILL_EXHAUST`다. 예산을 달 중간에 바꾸면 다음 요청부터 새 예산으로 계산한다.
 
 ### 지출 목록과 오류
 

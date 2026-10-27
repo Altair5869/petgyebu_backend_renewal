@@ -3,7 +3,7 @@
 - 갱신: 2026-10-10
 - 기준 문서: [00-renewal-development-guide.md](00-renewal-development-guide.md), [01-prd.md](01-prd.md)
 - 상태: 기능별 MVP 요구사항. 수치·응답·API·데이터 계약이 충돌하면 `00-renewal-development-guide.md`를 우선한다.
-- 기능 ID: `F-M01`~`F-M06`. 이전 제품의 ID와 검토 기록은 현재 구현 기준으로 사용하지 않는다.
+- 기능 ID: `F-M01`~`F-M07`. 이전 제품의 ID와 검토 기록은 현재 구현 기준으로 사용하지 않는다.
 
 ## 공통 계약
 
@@ -88,6 +88,15 @@
 - 실제 사용률은 `spentAmount / budgetAmount × 100`이다. 펫 상태는 실제 비율로 판정한다. API의 `usagePercent`는 소수 첫째 자리에서 **버림**하고 앱은 소수부가 0이면 `.0`을 숨긴다. 예를 들어 실제 49.99%는 표시 49.9%·안정이다.
 - 월 예산이 없는 과거 월에서는 `budgetAmount`, `usagePercent`, `budgetBalanceAmount`가 `null`이다.
 - 정확한 응답 필드·상태 코드·오류 계약은 [개발 기준 8절](00-renewal-development-guide.md)을 따른다.
+
+## F-M07 소비 인사이트
+
+| 항목 | 요구사항 |
+|---|---|
+| 대상 | `GET /api/v1/insights`는 서울 기준 오늘 전용이다. 요청 파라미터가 없고 펫 선택·예산 설정을 요구하지 않는다(409 없음). 인증 실패만 401이다. |
+| 주간 비교 | 월요일 시작 달력 주에서 이번 주 월요일~오늘과 7일 전 같은 요일 범위를 카테고리별로 비교한다. 월요일이면 두 범위 모두 하루다. 한쪽에라도 지출이 있는 카테고리만 `changeAmount`(이번 주 - 지난주, 음수 가능) 내림차순, 동률은 `FOOD, CAFE, TRANSPORT, SHOPPING, HEALTH, LIVING, OTHER` 순서다. |
+| 예산 소진 예측 | 현재 월 하루 평균 지출(`floor(spent / d)`)과 예산 소진 예상일을 제공한다. 상태 `NO_BUDGET`·`BUDGET_REACHED`·`TOO_EARLY`(1~3일차 숨김)·`WITHIN_BUDGET`·`WILL_EXHAUST`와 판정 순서는 [개발 기준 8절](00-renewal-development-guide.md)을 따른다. |
+| 범위 | 백엔드 API만 포함한다. 앱 화면은 `APP-006`이다. 저장 집계·캐시·알림은 없다. |
 
 ## 인수 기준
 

@@ -2,6 +2,7 @@ package org.altair.petgyebu_backend_renewal.expense;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.util.Objects;
 import java.util.UUID;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.relational.core.mapping.Table;
@@ -18,4 +19,10 @@ public record Expense(
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
         UUID idempotencyKey) {
+
+    // 멱등 재요청 비교: 요청이 만드는 내용과 같은지.
+    boolean sameContentAs(ExpenseRequest request) {
+        return amount == request.amount() && expenseDate.equals(request.expenseDate())
+                && category == request.category() && Objects.equals(memo, request.memo());
+    }
 }

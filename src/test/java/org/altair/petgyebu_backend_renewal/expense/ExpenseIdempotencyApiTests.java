@@ -82,6 +82,18 @@ class ExpenseIdempotencyApiTests {
     }
 
     @Test
+    void blankMemoReplayEqualsOmittedMemo() throws Exception {
+        String a = accessToken("a");
+        String key = UUID.randomUUID().toString();
+
+        create(a, "{\"amount\":1000,\"expenseDate\":\"2026-10-13\"}", key).andExpect(status().isCreated());
+        create(a, "{\"amount\":1000,\"expenseDate\":\"2026-10-13\",\"memo\":\"   \"}", key)
+                .andExpect(status().isOk());
+
+        assertThat(expenseCount()).isEqualTo(1);
+    }
+
+    @Test
     void sameKeyWithDifferentBodyReturns409() throws Exception {
         String a = accessToken("a");
         String key = UUID.randomUUID().toString();

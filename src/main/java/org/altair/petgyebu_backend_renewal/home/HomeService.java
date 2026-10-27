@@ -38,13 +38,22 @@ public class HomeService {
     public Home home(long userId) {
         // 인증 직후 행이 사라졌다면(동시 탈퇴) 종료된 로그인과 같이 취급한다.
         User user = users.findById(userId).orElseThrow(ApiException::unauthorized);
+        validatePetSelected(user);
+        YearMonth month = Months.current(clock);
+        Months.Range range = Months.range(month);
+        MonthlyBudget budget = requireCurrentBudget(userId, range);
+        long spent = MonthlySpending.of(expenses.findAmounts(userId, range.from(), range.to())).total();
+        return new Home(month, user.petType(), new BudgetUsage(budget.amount(), spent));
+    }
+
+    private static void validatePetSelected(User user) {
         if (user.petType() == null) {
             throw ApiException.petRequired();
         }
-        YearMonth month = Months.current(clock);
-        Months.Range range = Months.range(month);
-        MonthlyBudget budget = budgets.find(userId, range.from()).orElseThrow(ApiException::budgetRequired);
-        long spent = MonthlySpending.of(expenses.findAmounts(userId, range.from(), range.to())).total();
-        return new Home(month, user.petType(), new BudgetUsage(budget.amount(), spent));
+    }
+
+    // 새 달 예산을 자동으로 만들지 않으므로 현재 월 예산이 없으면 409다.
+    private MonthlyBudget requireCurrentBudget(long userId, Months.Range range) {
+        return budgets.find(userId, range.from()).orElseThrow(ApiException::budgetRequired);
     }
 }

@@ -1,0 +1,81 @@
+== findAmounts
+                                                      QUERY PLAN                                                       
+-----------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on expenses (actual time=0.016..0.081 rows=30 loops=1)
+   Recheck Cond: ((user_id = 60) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date))
+   Heap Blocks: exact=30
+   Buffers: shared hit=33
+   ->  Bitmap Index Scan on ix_expenses_user_date_id (actual time=0.005..0.005 rows=30 loops=1)
+         Index Cond: ((user_id = 60) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date))
+         Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.041 ms
+ Execution Time: 0.091 ms
+(11 rows)
+
+== findFirstPage (limit 21)
+                                                      QUERY PLAN                                                       
+-----------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.004..0.011 rows=21 loops=1)
+   Buffers: shared hit=24
+   ->  Index Scan using ix_expenses_user_date_id on expenses (actual time=0.004..0.010 rows=21 loops=1)
+         Index Cond: ((user_id = 60) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date))
+         Buffers: shared hit=24
+ Planning:
+   Buffers: shared hit=13
+ Planning Time: 0.050 ms
+ Execution Time: 0.017 ms
+(9 rows)
+
+== findPageAfter (limit 21)
+                                                                                           QUERY PLAN                                                                                            
+-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.029..0.030 rows=10 loops=1)
+   Buffers: shared hit=19
+   ->  Sort (actual time=0.028..0.029 rows=10 loops=1)
+         Sort Key: expense_date DESC, id DESC
+         Sort Method: quicksort  Memory: 26kB
+         Buffers: shared hit=19
+         ->  Bitmap Heap Scan on expenses (actual time=0.006..0.010 rows=10 loops=1)
+               Recheck Cond: ((user_id = 60) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date) AND (ROW(expense_date, id) < ROW('2026-04-11'::date, 208743)))
+               Heap Blocks: exact=10
+               Buffers: shared hit=13
+               ->  Bitmap Index Scan on ix_expenses_user_date_id (actual time=0.004..0.004 rows=10 loops=1)
+                     Index Cond: ((user_id = 60) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date) AND (ROW(expense_date, id) < ROW('2026-04-11'::date, 208743)))
+                     Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.036 ms
+ Execution Time: 0.041 ms
+(17 rows)
+
+== monthlyBudget find
+                                                 QUERY PLAN                                                  
+-------------------------------------------------------------------------------------------------------------
+ Index Scan using uq_monthly_budgets_user_month on monthly_budgets (actual time=0.009..0.009 rows=1 loops=1)
+   Index Cond: ((user_id = 60) AND (budget_month = '2026-04-01'::date))
+   Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=49
+ Planning Time: 0.055 ms
+ Execution Time: 0.012 ms
+(7 rows)
+
+== hasActiveSession
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Result (actual time=0.013..0.013 rows=1 loops=1)
+   Buffers: shared hit=3
+   InitPlan 1 (returns $0)
+     ->  Index Scan using users_pkey on users (actual time=0.012..0.012 rows=0 loops=1)
+           Index Cond: (id = 60)
+           Filter: (active_session_id = gen_random_uuid())
+           Rows Removed by Filter: 1
+           Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=43
+ Planning Time: 0.058 ms
+ Execution Time: 0.018 ms
+(12 rows)
+

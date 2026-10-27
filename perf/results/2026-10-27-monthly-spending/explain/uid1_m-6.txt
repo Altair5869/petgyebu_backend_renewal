@@ -1,0 +1,73 @@
+== findAmounts
+                                                      QUERY PLAN                                                      
+----------------------------------------------------------------------------------------------------------------------
+ Bitmap Heap Scan on expenses (actual time=0.022..0.147 rows=100 loops=1)
+   Recheck Cond: ((user_id = 1) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date))
+   Heap Blocks: exact=89
+   Buffers: shared hit=93
+   ->  Bitmap Index Scan on ix_expenses_user_date_id (actual time=0.008..0.008 rows=100 loops=1)
+         Index Cond: ((user_id = 1) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date))
+         Buffers: shared hit=4
+ Planning:
+   Buffers: shared hit=7
+ Planning Time: 0.036 ms
+ Execution Time: 0.158 ms
+(11 rows)
+
+== findFirstPage (limit 21)
+                                                      QUERY PLAN                                                      
+----------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.004..0.013 rows=21 loops=1)
+   Buffers: shared hit=23
+   ->  Index Scan using ix_expenses_user_date_id on expenses (actual time=0.003..0.011 rows=21 loops=1)
+         Index Cond: ((user_id = 1) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date))
+         Buffers: shared hit=23
+ Planning:
+   Buffers: shared hit=13
+ Planning Time: 0.048 ms
+ Execution Time: 0.018 ms
+(9 rows)
+
+== findPageAfter (limit 21)
+                                                                                     QUERY PLAN                                                                                     
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+ Limit (actual time=0.005..0.011 rows=21 loops=1)
+   Buffers: shared hit=22
+   ->  Index Scan using ix_expenses_user_date_id on expenses (actual time=0.005..0.010 rows=21 loops=1)
+         Index Cond: ((user_id = 1) AND (expense_date >= '2026-04-01'::date) AND (expense_date < '2026-05-01'::date) AND (ROW(expense_date, id) < ROW('2026-04-24'::date, 225819)))
+         Buffers: shared hit=22
+ Planning:
+   Buffers: shared hit=1
+ Planning Time: 0.029 ms
+ Execution Time: 0.020 ms
+(9 rows)
+
+== monthlyBudget find
+                                                 QUERY PLAN                                                  
+-------------------------------------------------------------------------------------------------------------
+ Index Scan using uq_monthly_budgets_user_month on monthly_budgets (actual time=0.006..0.007 rows=1 loops=1)
+   Index Cond: ((user_id = 1) AND (budget_month = '2026-04-01'::date))
+   Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=49
+ Planning Time: 0.051 ms
+ Execution Time: 0.009 ms
+(7 rows)
+
+== hasActiveSession
+                                       QUERY PLAN                                       
+----------------------------------------------------------------------------------------
+ Result (actual time=0.011..0.012 rows=1 loops=1)
+   Buffers: shared hit=3
+   InitPlan 1 (returns $0)
+     ->  Index Scan using users_pkey on users (actual time=0.011..0.011 rows=0 loops=1)
+           Index Cond: (id = 1)
+           Filter: (active_session_id = gen_random_uuid())
+           Rows Removed by Filter: 1
+           Buffers: shared hit=3
+ Planning:
+   Buffers: shared hit=43
+ Planning Time: 0.059 ms
+ Execution Time: 0.017 ms
+(12 rows)
+

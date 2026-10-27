@@ -23,6 +23,11 @@ EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
 SELECT category, amount FROM expenses
 WHERE user_id = :uid AND expense_date >= :'m_from' AND expense_date < :'m_to';
 
+\echo == findDayAmounts
+EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
+SELECT expense_date, category, amount FROM expenses
+WHERE user_id = :uid AND expense_date >= :'m_from' AND expense_date < :'m_to';
+
 \echo == findFirstPage (limit 21)
 EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
 SELECT * FROM expenses

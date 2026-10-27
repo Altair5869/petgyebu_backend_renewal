@@ -1,6 +1,7 @@
 package org.altair.petgyebu_backend_renewal.common;
 
 import java.time.Clock;
+import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
@@ -11,11 +12,19 @@ public final class Months {
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final YearMonth MIN_MONTH = YearMonth.of(2000, 1);
 
+    // 월 범위 [from, to). to는 다음 달 첫날이다.
+    public record Range(LocalDate from, LocalDate to) {
+    }
+
     private Months() {
     }
 
     public static YearMonth current(Clock clock) {
         return YearMonth.from(clock.instant().atZone(SEOUL));
+    }
+
+    public static Range range(YearMonth month) {
+        return new Range(month.atDay(1), month.plusMonths(1).atDay(1));
     }
 
     // 2000-01부터 서울 기준 현재 월까지의 YYYY-MM만 허용한다.

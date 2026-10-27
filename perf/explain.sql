@@ -18,16 +18,10 @@ SELECT expense_date AS c_date, id AS c_id FROM expenses
 WHERE user_id = :uid AND expense_date >= :'m_from' AND expense_date < :'m_to'
 ORDER BY expense_date DESC, id DESC OFFSET 19 LIMIT 1 \gset
 
-\echo == sumAmount
+\echo == findAmounts
 EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
-SELECT COALESCE(SUM(amount), 0) FROM expenses
+SELECT category, amount FROM expenses
 WHERE user_id = :uid AND expense_date >= :'m_from' AND expense_date < :'m_to';
-
-\echo == sumByCategory
-EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
-SELECT category, SUM(amount) AS spent_amount, COUNT(*) AS expense_count FROM expenses
-WHERE user_id = :uid AND expense_date >= :'m_from' AND expense_date < :'m_to'
-GROUP BY category;
 
 \echo == findFirstPage (limit 21)
 EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)

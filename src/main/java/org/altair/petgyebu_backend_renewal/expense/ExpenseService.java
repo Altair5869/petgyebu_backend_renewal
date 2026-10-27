@@ -41,7 +41,7 @@ public class ExpenseService {
     public record CreateResult(Expense expense, boolean created) {
     }
 
-    // 생략과 명시적 null을 구분해야 하므로 본문을 JsonNode로 받아 직접 검증한다.
+    // 생략과 명시적 null을 구분해야 하므로 ExpenseRequest/ExpensePatch가 JsonNode 본문을 직접 파싱한다.
     // idempotencyKey는 선택이다. 본문 검증이 키 조회보다 먼저다.
     // 일부러 @Transactional을 쓰지 않는다. 키 충돌로 insert가 실패해도 다음 조회는 새 트랜잭션이다.
     public CreateResult create(long userId, JsonNode body, String idempotencyKey) {

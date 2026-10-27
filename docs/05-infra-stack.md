@@ -44,7 +44,7 @@ PostgreSQL 16 (users · expenses · monthly_budgets)
 
 DB에는 합의한 `NOT NULL`, 외래 키, `UNIQUE(provider, provider_user_id)`, `UNIQUE(user_id, budget_month)`를 둔다. 지출 목록의 날짜·ID 역순 조회를 위해 `(user_id, expense_date DESC, id DESC)` 인덱스를 둔다. 동일 사용자·월 예산의 동시 PUT은 한 행만 남기는 upsert로 처리한다. 금액 양수, 카테고리 일곱 가지, 예산 월 첫날 정규화는 애플리케이션에서 검증하고 DB `CHECK`는 두지 않는다. 직접 DB 변경은 이 검증을 우회하므로 마이그레이션·운영 절차에서 별도 확인한다.
 
-월 합계는 사용자와 `Asia/Seoul` 월 범위 `[첫날, 다음 달 첫날)`에 속한 지출을 DB에서 행을 조회해 애플리케이션(`MonthlySpending`)에서 계산한다. 예산 잔액은 `budgetAmount - spentAmount`의 부호를 유지한다. 사용률 표시값은 소수 첫째 자리에서 버리고, 펫 상태는 버리기 전 실제 비율로 판정한다. 펫 상태는 현재 월에만 계산한다. 과거 월에는 펫 데이터가 없으며 예산 없는 과거 월은 예산 관련 값만 `null`이다. 카테고리 비중은 소수 첫째 자리 반올림이다. 정확한 필드와 경계는 개발 기준을 따른다.
+월 합계는 사용자와 `Asia/Seoul` 월 범위 `[첫날, 다음 달 첫날)`에 속한 지출 행을 DB에서 조회해 애플리케이션(`MonthlySpending`)에서 계산한다. 예산 잔액은 `budgetAmount - spentAmount`의 부호를 유지한다. 사용률 표시값은 소수 첫째 자리에서 버리고, 펫 상태는 버리기 전 실제 비율로 판정한다. 펫 상태는 현재 월에만 계산한다. 과거 월에는 펫 데이터가 없으며 예산 없는 과거 월은 예산 관련 값만 `null`이다. 카테고리 비중은 소수 첫째 자리 반올림이다. 정확한 필드와 경계는 개발 기준을 따른다.
 
 데이터 접근은 Spring Data JDBC로 한다. 단순 조회는 파생 쿼리를 쓰고, 다음 경우는 `@Query`의 PostgreSQL SQL로 쓴다. 예산·로그인의 `INSERT … ON CONFLICT … RETURNING` upsert, 리프레시 토큰의 조건부 `UPDATE`(비교와 교체를 한 문장에서 처리), `(expense_date, id)` 행 값 비교 커서, 월 범위 `(category, amount)` 행 조회(집계는 애플리케이션), 탈퇴의 명시적 `DELETE`다. JPA·QueryDSL은 도입하지 않는다(2026-10-25 재검토).
 

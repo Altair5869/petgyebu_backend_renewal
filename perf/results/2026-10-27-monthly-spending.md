@@ -41,7 +41,7 @@ uid 60: normal(월 30건), uid 1: mid(월 100건), uid 100: heavy(월 300건).
 | heavy stats_current | before | 12.92 | 12.71 | 16.93 | 20.27 | 52.27 | |
 | | after | 14.26 | 13.34 | 23.45 | 29.87 | 51.44 | 1.39 |
 
-heavy home after 재측정(같은 DB·같은 앱 실행 방식, 앱은 재시작):
+heavy home after 재측정(같은 DB·같은 앱 실행 방식, 앱은 재시작). 재측정 1/2는 각각 `k6/after_heavy_home_rerun2.json`, `k6/after_heavy_home_rerun3.json`에 해당한다:
 
 | 구분 | avg | p50 | p95 | p99 | max |
 | --- | ---: | ---: | ---: | ---: | ---: |
@@ -58,4 +58,5 @@ heavy home after 재측정(같은 DB·같은 앱 실행 방식, 앱은 재시작
 - 홈(normal)은 거의 같다(p95 13.62 → 13.97). 이 시나리오의 쿼리는 둘 다 한 개이고 행은 30건이다.
 - heavy는 after가 느리다. 홈은 avg 8.70 → 15.77, p95 12.92 → 26.71로 2.07배이고, 통계는 avg 12.92 → 14.26, p95 16.93 → 23.45(1.39배)다. heavy 홈의 재측정 두 번도 p95 24.62, 25.55로 같은 방향이다.
 - 같은 heavy 월 300건에서 DB Execution Time은 before sumAmount 0.327/0.296ms, after findAmounts 0.298/0.300ms로 비슷하다. 따라서 DB 쿼리 실행 시간만으로는 heavy 홈의 차이가 설명되지 않는다. 이 측정은 차이의 원인(행 전송·매핑, JVM 처리 등)을 분리하지 않았다.
+- heavy 홈 after(p95 26.71)가 heavy 통계 after(23.45)보다 느린데, 홈은 앱 쪽 계산이 더 적다. 또 before의 heavy 홈(12.92)은 before의 normal 홈(13.62)보다 빨랐다. 따라서 측정 잡음과 실행 순서·워밍업 효과를 배제할 수 없고, 원인은 분리하지 않았다.
 - normal 통계는 빨라졌지만 heavy 홈은 2배를 넘게 느려졌으므로, 집계를 서비스로 옮긴 것의 이득은 월 지출 건수에 따라 다르다. 이 측정은 시드 데이터 한 규모(normal 30건, heavy 300건)와 한 장비에서만 이뤄졌다.

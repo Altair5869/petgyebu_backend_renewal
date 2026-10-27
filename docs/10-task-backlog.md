@@ -2,7 +2,7 @@
 
 - 갱신: 2026-10-11
 - 기준: [리뉴얼 개발 기준](00-renewal-development-guide.md), [스프린트 계획](06-sprint-plan.md), [구현 맵](08-feature-implementation-map.md), [DB 설계](09-db-design.md)
-- 범위: `petgyebu_backend_renewal` 백엔드와 별도 React Native 앱. 백엔드 `M-001`~`M-010`, 앱 `APP-001`~`APP-005`를 유지한다.
+- 범위: `petgyebu_backend_renewal` 백엔드와 별도 React Native 앱. 백엔드 `M-001`~`M-011`, 앱 `APP-001`~`APP-006`을 유지한다.
 - 상태: 아래 체크는 **구현 작업**의 완료 여부다. 문서 수정이나 이전 제품의 완료 기록만으로 체크하지 않는다. 현재 코드와 앱의 구현·검증 증거가 없는 항목은 `[ ]`로 둔다.
 
 ## 공통 완료 기준
@@ -82,6 +82,15 @@
 > - **실제 로그인:** 실제 확인기를 쓰는 `bootRun`과 Default 카카오 네이티브 앱 키로 빌드한 개발 빌드에서, Android는 카카오(기존 회원)·구글(신규 가입 → 펫 → 예산 → 홈)과 카카오 로그인 창 닫기 시 취소 처리를, iOS는 두 공급자 모두 같은 회원으로 홈 진입을 확인했다(앱 PR #26·#27).
 > - **백엔드:** `./gradlew test --no-daemon` 통과(테스트 192개, 실패 0개). 15개 API·사용자별 접근·50%·80%·100% 경계·탈퇴 롤백은 `M-003`~`M-009` 검증 기록의 테스트가 확인한다. 배포 의존성은 Web MVC·Data JDBC·Flyway·Security(OAuth2 리소스 서버)·Validation·PostgreSQL 드라이버뿐이고 패키지는 `auth`·`user`·`expense`·`budget`·`home`·`stats`·`common`으로, 계좌·배치·푸시·보상 등 제외 기능이 없다. 백엔드·앱 모두 0.1.0으로 `main`에 반영했다(백엔드 PR #31, 앱 PR #27).
 > - **확인하지 않은 것:** 실기기, VoiceOver·TalkBack, 운영 백엔드, 카카오 동의 화면 취소·구글 계정 선택 창 닫기. 출시 서명 키의 SHA-1·키 해시 등록, 구글 OAuth 동의 화면 게시, 카카오 운영 설정은 출시 준비에서 한다.
+
+## 후속 — 소비 인사이트
+
+| ID | 작업과 완료 기준 | 의존 | 상태 |
+|---|---|---|---|
+| `M-011` | **소비 인사이트 API.** `GET /api/v1/insights`가 서울 기준 오늘의 카테고리별 이번 주·지난주 같은 요일 범위 비교(`weekly`)와 현재 월 예산 소진 예측(`forecast`)을 반환한다. 펫·예산이 없어도 200이고 인증 실패만 401이다. 예측은 `00` 8절의 판정 순서(1~3일차 숨김 포함)를 따른다. 기능 `F-M07`. | `M-008`, `M-009` | [x] |
+| `APP-006` | **인사이트 화면.** 카테고리별 이번 주·지난주 비교와 예산 소진 예측을 보여준다. 1~3일차 숨김 상태 표시 등은 API 상태값을 따른다. | `M-011` | [ ] |
+
+> `M-011` 검증 기록 (2026-10-27): `GET /api/v1/insights`를 `insight` 패키지로 구현했다. `ExpenseRepository.findDayAmounts`가 사용자의 `[min(현재 월 1일, 지난주 월요일), 오늘]` 범위 `(expense_date, category, amount)` 행만 조회하고, `WeeklyComparison`·`BudgetForecast`가 DB 없이 비교·예측을 계산하며 `InsightService`는 조회·조합만 한다. 시간은 주입된 `Clock`과 `Asia/Seoul`이다. `WeeklyComparisonTests`(5개)로 주 범위와 카테고리 비교·정렬을, `BudgetForecastTests`(9개)로 예측 표의 각 행·3일차/4일차·마지막 날 소진·`spent == budget`·큰 합계를, `InsightApiTests`(6개)로 응답 필드, 다른 사용자 지출 제외, 예산 없음 `NO_BUDGET`, 펫 없이 200, 미인증 401, 서울 경계를 검증했다. 기존 15개 API와 스키마는 바꾸지 않았다. `./gradlew cleanTest test --no-daemon` 통과(테스트 220개, 실패 0개).
 
 ## 출시 준비와 후속 실험
 

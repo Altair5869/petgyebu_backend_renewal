@@ -42,6 +42,13 @@ public interface ExpenseRepository extends Repository<Expense, Long> {
             """)
     List<ExpenseAmount> findAmounts(long userId, LocalDate from, LocalDate to);
 
+    // 사용자 [from, to)의 날짜·카테고리·금액 행. 인사이트가 Service에서 주간 비교와 월 합계를 계산한다.
+    @Query("""
+            SELECT expense_date, category, amount FROM expenses
+            WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to
+            """)
+    List<ExpenseDayAmount> findDayAmounts(long userId, LocalDate from, LocalDate to);
+
     @Query("""
             SELECT * FROM expenses
             WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to

@@ -30,23 +30,17 @@ public interface ExpenseRepository extends Repository<Expense, Long> {
     @Query("DELETE FROM expenses WHERE id = :id AND user_id = :userId")
     int delete(long id, long userId);
 
-    // 사용자·월 [from, to)의 지출 합계. 홈과 월 통계가 공유하며 지출이 없으면 0이다.
+    // 탈퇴 전용. 사용자의 지출 전체를 지운다.
+    @Modifying
+    @Query("DELETE FROM expenses WHERE user_id = :userId")
+    int deleteAllOfUser(long userId);
+
+    // 사용자·월 [from, to)의 카테고리·금액 행. 홈과 월 통계가 Service에서 집계한다.
     @Query("""
-            SELECT COALESCE(SUM(amount), 0) FROM expenses
+            SELECT category, amount FROM expenses
             WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to
             """)
-    long sumAmount(long userId, LocalDate from, LocalDate to);
-
-    record CategoryTotal(Category category, long spentAmount, long expenseCount) {
-    }
-
-    // 사용자·월 [from, to)의 카테고리별 합계·건수. 지출이 있는 카테고리만 나온다.
-    @Query("""
-            SELECT category, SUM(amount) AS spent_amount, COUNT(*) AS expense_count FROM expenses
-            WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to
-            GROUP BY category
-            """)
-    List<CategoryTotal> sumByCategory(long userId, LocalDate from, LocalDate to);
+    List<ExpenseAmount> findAmounts(long userId, LocalDate from, LocalDate to);
 
     @Query("""
             SELECT * FROM expenses

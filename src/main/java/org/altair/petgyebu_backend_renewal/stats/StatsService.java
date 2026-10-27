@@ -3,7 +3,6 @@ package org.altair.petgyebu_backend_renewal.stats;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.Comparator;
 import java.util.List;
@@ -12,9 +11,9 @@ import org.altair.petgyebu_backend_renewal.budget.MonthlyBudgetRepository;
 import org.altair.petgyebu_backend_renewal.common.Months;
 import org.altair.petgyebu_backend_renewal.expense.Category;
 import org.altair.petgyebu_backend_renewal.expense.ExpenseRepository;
-import org.altair.petgyebu_backend_renewal.expense.ExpenseRepository.CategoryTotal;
+import org.altair.petgyebu_backend_renewal.expense.MonthlySpending;
+import org.altair.petgyebu_backend_renewal.expense.MonthlySpending.CategoryTotal;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
@@ -44,21 +43,19 @@ public class StatsService {
         this.clock = clock;
     }
 
-    // 합계와 카테고리 쿼리가 같은 스냅숏을 보도록 REPEATABLE READ로 읽는다(카테고리 합 = 월 합계).
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    // 한 조회로 합계·카테고리를 함께 계산한다(카테고리 합 = 월 합계).
+    @Transactional(readOnly = true)
     public Stats stats(long userId, String monthText) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);
-        LocalDate from = month.atDay(1);
-        LocalDate to = month.plusMonths(1).atDay(1);
-        long spent = expenses.sumAmount(userId, from, to);
-        List<CategoryTotal> totals = expenses.sumByCategory(userId, from, to);
-        long count = totals.stream().mapToLong(CategoryTotal::expenseCount).sum();
-        List<CategoryStat> categories = totals.stream()
+        Months.Range range = Months.range(month);
+        MonthlySpending spending = MonthlySpending.of(expenses.findAmounts(userId, range.from(), range.to()));
+        long spent = spending.total();
+        List<CategoryStat> categories = spending.categories().stream()
                 .sorted(ORDER)
                 .map(t -> new CategoryStat(t.category(), t.spentAmount(), t.expenseCount(), share(t.spentAmount(), spent)))
                 .toList();
-        BudgetUsage usage = budgets.find(userId, from).map(b -> new BudgetUsage(b.amount(), spent)).orElse(null);
-        return new Stats(month, spent, count, usage, categories);
+        BudgetUsage usage = budgets.find(userId, range.from()).map(b -> new BudgetUsage(b.amount(), spent)).orElse(null);
+        return new Stats(month, spent, spending.count(), usage, categories);
     }
 
     // 카테고리가 있으면 spent > 0이다. 소수 첫째 자리 반올림(HALF_UP), 합계 100 보정은 하지 않는다.

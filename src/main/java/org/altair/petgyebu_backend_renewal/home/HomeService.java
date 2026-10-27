@@ -1,7 +1,6 @@
 package org.altair.petgyebu_backend_renewal.home;
 
 import java.time.Clock;
-import java.time.LocalDate;
 import java.time.YearMonth;
 import org.altair.petgyebu_backend_renewal.budget.BudgetUsage;
 import org.altair.petgyebu_backend_renewal.budget.MonthlyBudget;
@@ -9,6 +8,7 @@ import org.altair.petgyebu_backend_renewal.budget.MonthlyBudgetRepository;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.common.Months;
 import org.altair.petgyebu_backend_renewal.expense.ExpenseRepository;
+import org.altair.petgyebu_backend_renewal.expense.MonthlySpending;
 import org.altair.petgyebu_backend_renewal.user.User;
 import org.altair.petgyebu_backend_renewal.user.UserRepository;
 import org.springframework.stereotype.Service;
@@ -42,9 +42,9 @@ public class HomeService {
             throw ApiException.petRequired();
         }
         YearMonth month = Months.current(clock);
-        LocalDate from = month.atDay(1);
-        MonthlyBudget budget = budgets.find(userId, from).orElseThrow(ApiException::budgetRequired);
-        long spent = expenses.sumAmount(userId, from, month.plusMonths(1).atDay(1));
+        Months.Range range = Months.range(month);
+        MonthlyBudget budget = budgets.find(userId, range.from()).orElseThrow(ApiException::budgetRequired);
+        long spent = MonthlySpending.of(expenses.findAmounts(userId, range.from(), range.to())).total();
         return new Home(month, user.petType(), new BudgetUsage(budget.amount(), spent));
     }
 }

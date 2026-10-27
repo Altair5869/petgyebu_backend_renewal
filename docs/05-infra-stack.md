@@ -1,6 +1,6 @@
 # 인프라·기술 스택: Petgyebu 리뉴얼 MVP
 
-- 갱신: 2026-10-26
+- 갱신: 2026-10-27
 - 기준: [리뉴얼 개발 기준](00-renewal-development-guide.md), 저장소의 `build.gradle`·`AGENTS.md`
 - 상태: 현재 저장소의 기술 구성과 MVP 구현 기준. 배포 완료 상태를 뜻하지 않는다.
 
@@ -11,7 +11,7 @@ React Native 앱
     │ HTTPS · JSON
     ▼
 Spring Boot API (Java 25 · Spring Web MVC · Spring Security)
-    │ Spring Data JDBC · 명시적 월 집계 쿼리 · Flyway
+    │ Spring Data JDBC · 명시적 월 지출 행 쿼리 · Flyway
     ▼
 PostgreSQL 16 (users · expenses · monthly_budgets)
 ```
@@ -23,7 +23,7 @@ PostgreSQL 16 (users · expenses · monthly_budgets)
 | 앱 | React Native | 백엔드가 연결될 별도 앱 프로젝트. 현재 저장소에는 앱 코드가 없다. 펫 연출의 에셋 형식·렌더링 방식은 이 문서에서 고정하지 않는다. |
 | 백엔드 | Java 25, Spring Boot 4.1.1, Gradle Groovy, Spring Web MVC | `build.gradle`과 `AGENTS.md`에 명시된 현재 프로젝트 구성 |
 | 인증 | Spring Security, 카카오·구글 로그인, 서버 자체 액세스·리프레시 토큰 | Security 의존성은 존재한다. 소셜 연동과 토큰 발급·갱신은 구현 대상이다. 액세스 토큰은 HS256 JWT이며 `spring-boot-starter-security-oauth2-resource-server`로 발급·검증한다. 리프레시 토큰은 무작위 값이며 DB에 SHA-256 해시만 저장한다. |
-| 데이터 접근 | Spring Data JDBC, PostgreSQL 16 | JDBC 의존성이 있다. 사용자·월 집계는 명시적 쿼리로 계산한다. JPA·QueryDSL은 도입하지 않는다. |
+| 데이터 접근 | Spring Data JDBC, PostgreSQL 16 | JDBC 의존성이 있다. 사용자·월 지출 행은 명시적 쿼리로 조회하고 합계·카테고리 집계는 애플리케이션에서 계산한다. JPA·QueryDSL은 도입하지 않는다. |
 | 스키마 | Flyway, PostgreSQL용 Flyway 모듈 | 의존성이 있다. 세 논리 테이블과 제약·인덱스는 마이그레이션으로 관리한다. 앱 실행 시 자동 스키마 생성에 맡기지 않는다. |
 | 설정·비밀값 | `application.yaml`, 환경 변수 | 설정 파일은 저장소에 있다. DB 접속 정보·토큰 서명 키·소셜 인증 비밀값은 소스와 로그에 남기지 않는다. 토큰 서명 키는 `PETGYEBU_JWT_SECRET`(32바이트 이상, `openssl rand -base64 32`처럼 무작위로 생성한 값이며 사람이 정한 문자열은 쓰지 않는다)으로 주입하며 없으면 앱이 시작되지 않는다. 카카오 앱 ID(PETGYEBU_KAKAO_APP_ID)와 구글 클라이언트 ID 목록(PETGYEBU_GOOGLE_CLIENT_IDS, 쉼표 구분)은 공개 값이며 비어 있으면 해당 공급자 로그인이 503이다. |
 | 테스트 | JUnit, Spring Boot 테스트, PostgreSQL Testcontainers | 현재 테스트 의존성이 있다. DB 계약을 검증하는 통합 테스트는 Docker의 PostgreSQL을 사용한다. |
@@ -44,9 +44,9 @@ PostgreSQL 16 (users · expenses · monthly_budgets)
 
 DB에는 합의한 `NOT NULL`, 외래 키, `UNIQUE(provider, provider_user_id)`, `UNIQUE(user_id, budget_month)`를 둔다. 지출 목록의 날짜·ID 역순 조회를 위해 `(user_id, expense_date DESC, id DESC)` 인덱스를 둔다. 동일 사용자·월 예산의 동시 PUT은 한 행만 남기는 upsert로 처리한다. 금액 양수, 카테고리 일곱 가지, 예산 월 첫날 정규화는 애플리케이션에서 검증하고 DB `CHECK`는 두지 않는다. 직접 DB 변경은 이 검증을 우회하므로 마이그레이션·운영 절차에서 별도 확인한다.
 
-월 합계는 사용자와 `Asia/Seoul` 월 범위 `[첫날, 다음 달 첫날)`에 속한 지출을 DB에서 계산한다. 예산 잔액은 `budgetAmount - spentAmount`의 부호를 유지한다. 사용률 표시값은 소수 첫째 자리에서 버리고, 펫 상태는 버리기 전 실제 비율로 판정한다. 펫 상태는 현재 월에만 계산한다. 과거 월에는 펫 데이터가 없으며 예산 없는 과거 월은 예산 관련 값만 `null`이다. 카테고리 비중은 소수 첫째 자리 반올림이다. 정확한 필드와 경계는 개발 기준을 따른다.
+월 합계는 사용자와 `Asia/Seoul` 월 범위 `[첫날, 다음 달 첫날)`에 속한 지출 행을 DB에서 조회해 애플리케이션(`MonthlySpending`)에서 계산한다. 예산 잔액은 `budgetAmount - spentAmount`의 부호를 유지한다. 사용률 표시값은 소수 첫째 자리에서 버리고, 펫 상태는 버리기 전 실제 비율로 판정한다. 펫 상태는 현재 월에만 계산한다. 과거 월에는 펫 데이터가 없으며 예산 없는 과거 월은 예산 관련 값만 `null`이다. 카테고리 비중은 소수 첫째 자리 반올림이다. 정확한 필드와 경계는 개발 기준을 따른다.
 
-데이터 접근은 Spring Data JDBC로 한다. 단순 조회는 파생 쿼리를 쓰고, 다음 경우는 `@Query`의 PostgreSQL SQL로 쓴다. 예산·로그인의 `INSERT … ON CONFLICT … RETURNING` upsert, 리프레시 토큰의 조건부 `UPDATE`(비교와 교체를 한 문장에서 처리), `(expense_date, id)` 행 값 비교 커서, 월 `SUM`·`GROUP BY` 집계, 탈퇴의 명시적 `DELETE`다. JPA·QueryDSL은 도입하지 않는다(2026-10-25 재검토).
+데이터 접근은 Spring Data JDBC로 한다. 단순 조회는 파생 쿼리를 쓰고, 다음 경우는 `@Query`의 PostgreSQL SQL로 쓴다. 예산·로그인의 `INSERT … ON CONFLICT … RETURNING` upsert, 리프레시 토큰의 조건부 `UPDATE`(비교와 교체를 한 문장에서 처리), `(expense_date, id)` 행 값 비교 커서, 월 범위 `(category, amount)` 행 조회(집계는 애플리케이션), 탈퇴의 명시적 `DELETE`다. JPA·QueryDSL은 도입하지 않는다(2026-10-25 재검토).
 
 - 세 테이블 사이에 연관 탐색이 없고 쓰기는 모두 한 문장 `UPDATE`다. 그래서 JPA의 연관 매핑·변경 감지·1차 캐시로 얻는 이점이 작다.
 - 원자적 upsert, 조건부 교체, 행 값 커서는 JPQL로 표현할 수 없다. JPA를 쓰면 네이티브 쿼리로 돌아가거나, 잠금·재시도를 새로 설계해야 한다.

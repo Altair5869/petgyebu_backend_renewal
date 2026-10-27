@@ -280,6 +280,14 @@ class BudgetApiTests {
         assertThat(budgetCount()).isZero();
     }
 
+    @Test
+    void putChecksMonthBeforeBody() throws Exception {
+        String a = accessToken("a");
+        expectInvalid(putBudget(a, "2026-09", "[]"), "month");
+        expectInvalid(putBudget(a, "2026-9", "{\"amount\":0}"), "month");
+        assertThat(budgetCount()).isZero();
+    }
+
     private int budgetCount() {
         return jdbc.queryForObject("SELECT count(*) FROM monthly_budgets", Integer.class);
     }

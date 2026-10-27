@@ -573,6 +573,29 @@ class ExpenseApiTests {
         assertThat(expenseCount()).isZero();
     }
 
+    @Test
+    void createReportsFirstInvalidFieldInBodyOrder() throws Exception {
+        String a = accessToken("a");
+        expectInvalid(create(a, "{\"amount\":0,\"expenseDate\":\"x\",\"category\":\"X\",\"memo\":5}"), "amount");
+        expectInvalid(create(a, "{\"amount\":1,\"expenseDate\":\"2026-10-14\",\"category\":\"X\",\"memo\":5}"), "expenseDate");
+        expectInvalid(create(a, "{\"amount\":1,\"expenseDate\":\"2026-10-13\",\"category\":\"X\",\"memo\":5}"), "category");
+        // 잘못된 본문이 잘못된 Idempotency-Key보다 먼저다.
+        expectInvalid(mvc.perform(post("/api/v1/expenses").header("Authorization", "Bearer " + a)
+                .header("Idempotency-Key", "bad").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"amount\":0,\"expenseDate\":\"2026-10-13\"}")), "amount");
+        assertThat(expenseCount()).isZero();
+    }
+
+    @Test
+    void patchChecksBodyShapeThenExistenceThenFields() throws Exception {
+        String a = accessToken("a");
+        update(a, 99, "[]").andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
+        expectNotFound(update(a, 99, "{\"amount\":0}"));
+        create(a, body(3000, "2026-10-12", "HEALTH", null));
+        expectInvalid(update(a, 1, "{\"amount\":0,\"category\":\"X\"}"), "amount");
+        expectInvalid(update(a, 1, "{\"expenseDate\":\"2026-10-14\",\"memo\":5}"), "expenseDate");
+    }
+
     private void seed(long userId, String date) {
         jdbc.update("INSERT INTO expenses (user_id, amount, expense_date, category) VALUES (?, 1000, ?::date, 'FOOD')",
                 userId, date);

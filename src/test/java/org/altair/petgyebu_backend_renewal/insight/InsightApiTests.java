@@ -1,11 +1,7 @@
 package org.altair.petgyebu_backend_renewal.insight;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -141,10 +137,6 @@ class InsightApiTests {
 
     private ResultActions insights(String token) throws Exception {
         return mvc.perform(get("/api/v1/insights").header("Authorization", "Bearer " + token));
-    }
-
-    private void setPet(long userId, String petType) {
-        jdbc.update("UPDATE users SET pet_type = ? WHERE id = ?", petType, userId);
     }
 
     private void setBudget(long userId, String month, long amount) {

@@ -23,10 +23,15 @@ EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
 SELECT category, amount FROM expenses
 WHERE user_id = :uid AND expense_date >= :'m_from' AND expense_date < :'m_to';
 
+-- findDayAmounts 범위: [least(이번 달 1일, 지난주 월요일), 오늘+1), 서울 기준
+SELECT least(date_trunc('month', now() AT TIME ZONE 'Asia/Seoul')::date,
+             (date_trunc('week', (now() AT TIME ZONE 'Asia/Seoul')::date) - interval '7 days')::date) AS d_from \gset
+SELECT ((now() AT TIME ZONE 'Asia/Seoul')::date + 1) AS d_to \gset
+
 \echo == findDayAmounts
 EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
 SELECT expense_date, category, amount FROM expenses
-WHERE user_id = :uid AND expense_date >= :'m_from' AND expense_date < :'m_to';
+WHERE user_id = :uid AND expense_date >= :'d_from' AND expense_date < :'d_to';
 
 \echo == findFirstPage (limit 21)
 EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)

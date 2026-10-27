@@ -59,6 +59,16 @@ class BudgetForecastTests {
         expect(of("2026-10-30", 100_000_000L, 99_999_999), WILL_EXHAUST, 3_333_333L, "2026-10-31");
     }
 
+    @Test
+    void leapFebruaryLastDayIsExhaust() {
+        expect(of("2028-02-10", 290000L, 100000), WILL_EXHAUST, 10000L, "2028-02-29");
+    }
+
+    @Test
+    void samePaceRunsPastTwentyEightDayFebruary() {
+        expect(of("2027-02-10", 290000L, 100000), WITHIN_BUDGET, 10000L, null);
+    }
+
     private static BudgetForecast of(String date, Long budget, long spent) {
         return BudgetForecast.of(LocalDate.parse(date), budget, spent);
     }

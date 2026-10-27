@@ -65,4 +65,19 @@ class WeeklyComparisonTests {
                 List.of(row("2026-10-13", CAFE, 1000), row("2026-10-13", FOOD, 1000)));
         assertThat(w.categories()).extracting(CategoryChange::category).containsExactly(FOOD, CAFE);
     }
+
+    @Test
+    void zeroChangeCategoryStillAppears() {
+        WeeklyComparison w = WeeklyComparison.of(LocalDate.of(2026, 10, 13),
+                List.of(row("2026-10-12", CAFE, 1000), row("2026-10-05", CAFE, 1000)));
+        assertThat(w.categories()).containsExactly(new CategoryChange(CAFE, 1000, 1000, 0));
+    }
+
+    @Test
+    void largeWeeklySumsDoNotOverflow() {
+        List<ExpenseDayAmount> rows = java.util.stream.IntStream.range(0, 26)
+                .mapToObj(i -> row("2026-10-13", FOOD, 100_000_000L)).toList();
+        WeeklyComparison w = WeeklyComparison.of(LocalDate.of(2026, 10, 13), rows);
+        assertThat(w.categories()).containsExactly(new CategoryChange(FOOD, 2_600_000_000L, 0, 2_600_000_000L));
+    }
 }

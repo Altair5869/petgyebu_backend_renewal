@@ -3,7 +3,7 @@
 - 갱신: 2026-10-11
 - 기준: [리뉴얼 개발 기준](00-renewal-development-guide.md), [기능명세](02-requirements-features.md), [유저플로우](03-user-flow.md)
 - 범위: `petgyebu_backend_renewal` 백엔드와 별도 React Native 앱. 기간은 팀 속도에 맞춰 정하며, 각 단계의 완료 조건을 통과한 뒤 다음 단계로 넘어간다.
-- 작업 ID: `10-task-backlog.md`의 `M-001`~`M-010`, `APP-001`~`APP-005`와 연결한다. 완료 기준은 해당 백로그와 이 문서, 최상위 기준인 `00`을 함께 따른다.
+- 작업 ID: `10-task-backlog.md`의 `M-001`~`M-010`, `APP-001`~`APP-005`(MVP 기준, 이후 F-M07·M-011·APP-006 추가)와 연결한다. 완료 기준은 해당 백로그와 이 문서, 최상위 기준인 `00`을 함께 따른다.
 
 ## 공통 완료 기준
 

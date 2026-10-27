@@ -125,7 +125,7 @@ CREATE TABLE monthly_budgets (
 
 ## 4. 집계·커서·캐시
 
-월 경계는 `Asia/Seoul`의 `[월 첫날, 다음 달 첫날)`이다. `expense_date >= :firstDay AND expense_date < :nextMonthFirstDay AND user_id = :userId`로 지출 범위를 제한한다. 합계·건수는 `COALESCE(SUM(amount), 0)`과 `COUNT(*)`로, 카테고리 통계는 같은 범위를 `GROUP BY category`로 계산한다. 지출 0건이면 0원·0건과 빈 카테고리 배열이다.
+월 경계는 `Asia/Seoul`의 `[월 첫날, 다음 달 첫날)`이다. `expense_date >= :firstDay AND expense_date < :nextMonthFirstDay AND user_id = :userId`로 지출 범위를 제한한다. 같은 범위의 `(category, amount)` 행을 조회해(`ExpenseRepository.findAmounts`) `MonthlySpending`이 총액·건수·카테고리별 합계를 계산한다. 지출 0건이면 0원·0건과 빈 카테고리 배열이다.
 
 예산 잔액은 `budgetAmount - spentAmount`이며 초과 시 음수 그대로 반환한다. 사용률의 표시값은 소수 첫째 자리에서 버리지만 펫 상태는 버리기 전 비율로 판정한다. 카테고리 비중은 소수 첫째 자리 반올림이다. 월 예산이 없는 월(통계의 현재 월 포함)은 예산·사용률·잔액만 `null`이고 지출 통계는 계산한다. 과거 월에는 펫 상태를 계산·저장하지 않는다.
 

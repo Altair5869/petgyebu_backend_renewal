@@ -43,7 +43,7 @@ public class StatsService {
         this.clock = clock;
     }
 
-    // 한 조회로 합계·카테고리를 함께 계산한다(카테고리 합 = 월 합계).
+    // 지출 행을 한 번만 조회해 합계와 카테고리를 함께 계산한다(카테고리 합 = 월 합계).
     @Transactional(readOnly = true)
     public Stats stats(long userId, String monthText) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);

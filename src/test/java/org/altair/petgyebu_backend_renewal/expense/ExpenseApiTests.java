@@ -596,9 +596,74 @@ class ExpenseApiTests {
         expectInvalid(update(a, 1, "{\"expenseDate\":\"2026-10-14\",\"memo\":5}"), "expenseDate");
     }
 
+    @Test
+    void categoryFilterReturnsOnlyThatCategoryInListOrder() throws Exception {
+        String a = accessToken("a");
+        seed(1, "2026-10-05", "CAFE"); // 1
+        seed(1, "2026-10-10", "CAFE"); // 2
+        seed(1, "2026-10-08", "FOOD"); // 3
+        seed(1, "2026-10-10", "CAFE"); // 4
+        seed(1, "2026-10-12", "FOOD"); // 5
+        seed(1, "2026-09-20", "CAFE"); // 6 이전 월
+
+        list(a, "2026-10", "&category=CAFE")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(4, 2, 1)))
+                .andExpect(jsonPath("$.items[*].category", contains("CAFE", "CAFE", "CAFE")))
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
+    }
+
+    @Test
+    void categoryFilterPagesWithCursor() throws Exception {
+        String a = accessToken("a");
+        seed(1, "2026-10-01", "CAFE"); // 1
+        seed(1, "2026-10-02", "FOOD"); // 2
+        seed(1, "2026-10-03", "CAFE"); // 3
+        seed(1, "2026-10-04", "FOOD"); // 4
+        seed(1, "2026-10-05", "CAFE"); // 5
+        seed(1, "2026-10-06", "FOOD"); // 6
+
+        String page1 = list(a, "2026-10", "&category=CAFE&limit=2")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(5, 3)))
+                .andReturn().getResponse().getContentAsString();
+        String cursor = JsonPath.read(page1, "$.nextCursor");
+
+        list(a, "2026-10", "&category=CAFE&limit=2&cursor=" + cursor)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(1)))
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
+    }
+
+    @Test
+    void categoryFilterExcludesOtherUsers() throws Exception {
+        String a = accessToken("a");
+        accessToken("b");
+        seed(1, "2026-10-01", "CAFE"); // 1
+        seed(2, "2026-10-02", "CAFE"); // 2
+
+        list(a, "2026-10", "&category=CAFE").andExpect(jsonPath("$.items[*].id", contains(1)));
+    }
+
+    @Test
+    void invalidCategoryFilterIsRejected() throws Exception {
+        String a = accessToken("a");
+        seed(1, "2026-10-01", "CAFE");
+
+        for (String category : List.of("cafe", "COFFEE", "")) {
+            expectInvalid(list(a, "2026-10", "&category=" + category), "category");
+        }
+        expectInvalid(list(a, "2026-11", "&category=cafe"), "month");
+        expectInvalid(list(a, "2026-10", "&limit=0&category=cafe"), "limit");
+    }
+
     private void seed(long userId, String date) {
-        jdbc.update("INSERT INTO expenses (user_id, amount, expense_date, category) VALUES (?, 1000, ?::date, 'FOOD')",
-                userId, date);
+        seed(userId, date, "FOOD");
+    }
+
+    private void seed(long userId, String date, String category) {
+        jdbc.update("INSERT INTO expenses (user_id, amount, expense_date, category) VALUES (?, 1000, ?::date, ?)",
+                userId, date, category);
     }
 
     private int expenseCount() {

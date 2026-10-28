@@ -52,8 +52,8 @@ public class ExpenseController {
     @GetMapping("/months/{month}/expenses")
     ExpensePageResponse list(@AuthenticationPrincipal AuthUser authUser, @PathVariable String month,
             @RequestParam(defaultValue = "" + ExpenseService.DEFAULT_LIMIT) int limit,
-            @RequestParam(required = false) String cursor) {
-        ExpenseService.Page page = expenseService.list(authUser.userId(), month, limit, cursor);
+            @RequestParam(required = false) String cursor, @RequestParam(required = false) String category) {
+        ExpenseService.Page page = expenseService.list(authUser.userId(), month, limit, cursor, category);
         return new ExpensePageResponse(page.items().stream().map(ExpenseResponse::of).toList(), page.nextCursor());
     }
 

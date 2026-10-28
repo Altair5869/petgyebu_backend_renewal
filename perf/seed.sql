@@ -15,7 +15,7 @@
 
 SELECT setseed(0.42);
 
-TRUNCATE expenses, monthly_budgets, users RESTART IDENTITY;
+TRUNCATE expenses, category_goals, monthly_budgets, users RESTART IDENTITY;
 
 INSERT INTO users (provider, provider_user_id, pet_type, last_login_time)
 SELECT 'KAKAO', 'perf-' || lpad(i::text, 5, '0'), CASE WHEN i % 2 = 0 THEN 'CAT' ELSE 'DOG' END, now()

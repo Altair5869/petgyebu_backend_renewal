@@ -27,10 +27,9 @@ public class BudgetService {
         return budgets.find(userId, month.atDay(1));
     }
 
-    // 현재 월만 설정·변경한다. 새 달 예산을 자동으로 만들지 않는다.
+    // 2000-01부터 현재 월까지 설정·변경한다(과거 월 정정 포함). 새 달 예산을 자동으로 만들지 않는다.
     public MonthlyBudget put(long userId, String monthText, JsonNode body) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);
-        validateCurrentMonth(month);
         BudgetRequest request = BudgetRequest.from(body);
         try {
             return budgets.upsert(userId, month.atDay(1), request.amount(), OffsetDateTime.now(clock));
@@ -40,12 +39,6 @@ public class BudgetService {
                 throw ApiException.unauthorized();
             }
             throw e;
-        }
-    }
-
-    private void validateCurrentMonth(YearMonth month) {
-        if (!month.equals(Months.current(clock))) {
-            throw ApiException.invalidRequest("month", "현재 월만 설정할 수 있습니다.");
         }
     }
 }

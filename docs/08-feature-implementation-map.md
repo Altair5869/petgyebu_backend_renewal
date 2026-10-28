@@ -12,7 +12,7 @@
 | `F-M01` 계정·인증 | 0 | 카카오·구글 계정 식별, 자체 토큰 발급·교체·무효화, 한 활성 로그인, 내 정보, 탈퇴 트랜잭션 | `users`; 탈퇴 시 `expenses`, `monthly_budgets` 명시적 삭제 |
 | `F-M02` 펫 선택 | 1 | `CAT`·`DOG` 선택·변경. 별도 펫 테이블과 성장 계산 없음 | `users.pet_type` |
 | `F-M03` 수동 지출 | 1 | 생성·월별 커서 목록·단건 조회·부분 수정·삭제, 입력 검증, 사용자 소유권 확인 | `expenses` |
-| `F-M04` 월 예산 | 2 | 월별 예산 조회, 현재 월에만 설정·변경, 동시 PUT의 단일 upsert | `monthly_budgets` |
+| `F-M04` 월 예산 | 2 | 월별 예산 조회, 2000-01~현재 월 설정·변경(과거 월 정정 포함), 동시 PUT의 단일 upsert | `monthly_budgets` |
 | `F-M06` 현재 홈 | 2 | 현재 월의 지출 합계·예산 잔액·사용률·펫 상태 계산, 미설정 온보딩 오류 | `users`, `expenses`, `monthly_budgets` |
 | `F-M05` 월별 통계 | 3 | 현재·과거 월 총액·건수·카테고리 금액·건수·비중 계산. 과거 월 펫 응답 없음 | `expenses`, `monthly_budgets` |
 | `F-M07` 소비 인사이트 | 후속 | 이번 주·지난주 같은 요일 범위 카테고리 비교, 현재 월 예산 소진 예측. 펫·예산 없이도 200 | `expenses`, `monthly_budgets` |
@@ -31,7 +31,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 | 6 | `F-M02` | PUT | `/api/v1/users/me/pet` | `petType: CAT\|DOG` 선택·변경 → 갱신된 내 정보. 생략·`null`·그 밖의 값(대소문자 구분)은 400 `INVALID_REQUEST`(`petType`) | `users` |
 | 7 | `F-M06` | GET | `/api/v1/home` | 현재 월의 `month`, `petType`, `petState`, `budgetAmount`, `spentAmount`, `usagePercent`, `budgetBalanceAmount` | 3개 테이블 |
 | 8 | `F-M04` | GET | `/api/v1/months/{month}/budget` | 해당 월 `{month, amount}`; 미설정이면 `amount: null`. 2000-01~현재 월 밖·형식 오류는 400 `month` | `monthly_budgets` |
-| 9 | `F-M04` | PUT | `/api/v1/months/{month}/budget` | **현재 월만** `{amount}`로 생성·변경 → `{month, amount}`, 항상 200. 과거·미래 월은 400 `month` | `monthly_budgets` |
+| 9 | `F-M04` | PUT | `/api/v1/months/{month}/budget` | 2000-01~현재 월을 `{amount}`로 생성·변경 → `{month, amount}`, 항상 200. 미래 월은 400 `month` | `monthly_budgets` |
 | 10 | `F-M03` | POST | `/api/v1/expenses` | `amount`, `expenseDate`, 선택 `category`·`memo` → 지출 응답, 201 | `expenses` |
 | 11 | `F-M03` | GET | `/api/v1/months/{month}/expenses` | `limit`, `cursor` → `items`, `nextCursor` | `expenses` |
 | 12 | `F-M03` | GET | `/api/v1/expenses/{expenseId}` | 본인 지출 단건·수정 초기값 → 지출 응답 | `expenses` |
@@ -54,7 +54,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 
 - 지출 응답은 생성·단건 조회·수정·목록의 각 `item`에서 공통으로 `id`, `amount`, `expenseDate`, `category`, `memo`를 반환한다. `memo`가 없으면 `null`이다. DB의 생성·수정 시각은 화면 응답에 넣지 않는다.
 - 지출 금액은 1원 이상 1억 원(100,000,000) 이하의 원화 정수이며 날짜는 2000-01-01부터 `Asia/Seoul` 기준 오늘까지다. 생성에서 카테고리 생략·`null`은 `OTHER`, 메모 생략·빈칸·공백만 입력은 `null`이다. 메모는 최대 100자(코드 포인트)이며 NUL 문자는 400이다. 수정에서 생략한 필드는 유지하고 `memo: null`과 빈칸·공백만 있는 메모는 삭제한다. 금액·날짜·카테고리의 명시적 `null`은 400이다. 동일 날짜·금액·카테고리의 중복 기록은 허용한다.
-- 예산 금액은 1원 이상 1억 원(100,000,000) 이하다. 예산은 현재 월만 PUT할 수 있고 과거 월은 조회만 한다. 미래 월 예산은 저장하지 않는다. `(user_id, budget_month)`의 단일 upsert로 동시 정상 PUT도 한 행만 유지한다. 경합을 이유로 앱에 재시도용 409를 주지 않는다.
+- 예산 금액은 1원 이상 1억 원(100,000,000) 이하다. 예산은 2000-01부터 현재 월까지 PUT할 수 있다(과거 월 정정·새로 넣기 포함). 미래 월 예산은 저장하지 않고 삭제는 없다. `(user_id, budget_month)`의 단일 upsert로 동시 정상 PUT도 한 행만 유지한다. 경합을 이유로 앱에 재시도용 409를 주지 않는다.
 - 지출 목록은 날짜 DESC, ID DESC로 정렬한다. `limit` 기본값은 20, 최대 50이다. 첫 요청에는 커서가 없고 마지막은 `nextCursor: null`이다. 커서는 발급된 사용자·월에서만 유효하며 형식 오류 또는 다른 월의 커서는 400 `INVALID_CURSOR`다. 월 변경이나 지출 변경 뒤 앱은 첫 페이지부터 다시 조회한다. `limit`이 1~50 밖이거나 숫자가 아니면 보정하지 않고 400 `INVALID_REQUEST`다. `{month}`가 `YYYY-MM` 형식이 아니거나 `Asia/Seoul` 기준 미래 월 또는 2000-01 이전이면 400 `INVALID_REQUEST`다.
 
 ### 월 계산과 통계

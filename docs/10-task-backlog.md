@@ -2,7 +2,7 @@
 
 - 갱신: 2026-10-11
 - 기준: [리뉴얼 개발 기준](00-renewal-development-guide.md), [스프린트 계획](06-sprint-plan.md), [구현 맵](08-feature-implementation-map.md), [DB 설계](09-db-design.md)
-- 범위: `petgyebu_backend_renewal` 백엔드와 별도 React Native 앱. 백엔드 `M-001`~`M-011`, 앱 `APP-001`~`APP-006`을 유지한다.
+- 범위: `petgyebu_backend_renewal` 백엔드와 별도 React Native 앱. 백엔드 `M-001`~`M-012`, 앱 `APP-001`~`APP-007`을 유지한다.
 - 상태: 아래 체크는 **구현 작업**의 완료 여부다. 문서 수정이나 이전 제품의 완료 기록만으로 체크하지 않는다. 현재 코드와 앱의 구현·검증 증거가 없는 항목은 `[ ]`로 둔다.
 
 ## 공통 완료 기준
@@ -93,6 +93,13 @@
 > `M-011` 검증 기록 (2026-10-27): `GET /api/v1/insights`를 `insight` 패키지로 구현했다. `ExpenseRepository.findDayAmounts`가 사용자의 `[min(현재 월 1일, 지난주 월요일), 오늘]` 범위 `(expense_date, category, amount)` 행만 조회하고, `WeeklyComparison`·`BudgetForecast`가 DB 없이 비교·예측을 계산하며 `InsightService`는 조회·조합만 한다. 시간은 주입된 `Clock`과 `Asia/Seoul`이다. `WeeklyComparisonTests`(7개)로 주 범위와 카테고리 비교·정렬·변화 0 카테고리·큰 합계를, `BudgetForecastTests`(11개)로 예측 표의 각 행·3일차/4일차·마지막 날 소진·`spent == budget`·큰 합계·윤년/평년 2월을, `InsightApiTests`(6개)로 응답 필드, 다른 사용자 지출 제외, 예산 없음 `NO_BUDGET`, 펫 없이 200, 미인증 401, 서울 경계를 검증했다. 기존 15개 API와 스키마는 바꾸지 않았다. `./gradlew cleanTest test --no-daemon` 통과(테스트 224개, 실패 0개).
 
 > `APP-006` 검증 기록 (2026-10-28, iOS): 근거는 앱 PR #28이다. 홈의 "이번 주 돌아보기" 링크로 여는 인사이트 화면에 예산 예측 카드(상태별 문구), 이번 주 요약 문장, 카테고리별 이번 주·지난주 막대와 변화량, 빈 상태를 표시한다. 서버의 정렬·금액을 그대로 쓰고 앱에서 다시 계산하지 않는다. 백엔드 develop `52aa2b0`(M-011)의 `bootTestRun`에서 `NO_BUDGET`, 지출 0건 `WITHIN_BUDGET`, `WITHIN_BUDGET`, `WILL_EXHAUST`, `BUDGET_REACHED`, 줄어든 지출만 있는 경우, 401 응답이 계약과 일치했고 백엔드 계약 변경은 없다. `TOO_EARLY`는 1~3일에만 나와 실제 응답 대신 Jest로 문구를 확인했다. iPhone 18 Pro / iOS 27.0 시뮬레이터에서 Maestro `onboarding/first-login`과 새 `insights/weekly-insights`(빈 상태 → 카페 기록 → 요약·변화·예측 확인)가 통과했고, 앱 `lint`·`typecheck`·Jest(402개)가 통과했다. Android와 다른 홈 시나리오 재실행은 확인하지 않았다.
+
+## 후속 — 과거 월 예산 정정
+
+| ID | 작업과 완료 기준 | 의존 | 상태 |
+|---|---|---|---|
+| `M-012` | **과거 월 예산 설정·변경.** `PUT /api/v1/months/{month}/budget`가 GET과 같이 2000-01부터 서울 기준 현재 월까지 받는다. 잘못 넣은 과거 예산을 고치고 예산이 없던 과거 월에 새로 넣을 수 있다. 미래 월·형식 오류는 400 `month`, 금액 규칙·단일 upsert·200 응답은 그대로이고 삭제는 없다. 과거 예산은 그 달 통계에만 반영되며 홈·펫·인사이트는 현재 월 예산만 쓴다. 기능 `F-M04`. | `M-007` | [ ] |
+| `APP-007` | **과거 월 예산 입력·수정 화면.** 월별 상세에서 과거 월 예산을 넣거나 고칠 수 있다. 저장 뒤 그 달 통계의 예산·사용률·잔액이 갱신되고 과거 월에는 펫을 보이지 않는다. | `M-012`, `APP-005` | [ ] |
 
 ## 출시 준비와 후속 실험
 

@@ -129,10 +129,40 @@ class BudgetApiTests {
     }
 
     @Test
-    void putRejectsPastAndFutureMonth() throws Exception {
+    void putCreatesThenReplacesPastMonthBudgetInOneRow() throws Exception {
         String a = accessToken("a");
 
-        for (String month : List.of("2026-09", "2000-01", "2026-11", "2027-10")) {
+        for (String month : List.of("2026-09", "2000-01")) {
+            putBudget(a, month, "{\"amount\":300000}")
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.month").value(month))
+                    .andExpect(jsonPath("$.amount").value(300000));
+        }
+        Long septemberId = jdbc.queryForObject(
+                "SELECT id FROM monthly_budgets WHERE budget_month = DATE '2026-09-01'", Long.class);
+
+        clock.advance(Duration.ofMinutes(5));
+        putBudget(a, "2026-09", "{\"amount\":250000}").andExpect(status().isOk())
+                .andExpect(jsonPath("$.amount").value(250000));
+
+        assertThat(jdbc.queryForList("SELECT budget_month::text || ':' || amount FROM monthly_budgets ORDER BY budget_month",
+                String.class)).containsExactly("2000-01-01:300000", "2026-09-01:250000");
+        assertThat(jdbc.queryForObject("SELECT id FROM monthly_budgets WHERE budget_month = DATE '2026-09-01'", Long.class))
+                .isEqualTo(septemberId);
+        getBudget(a, "2026-09").andExpect(status().isOk()).andExpect(jsonPath("$.amount").value(250000));
+        // 과거 예산을 넣어도 현재 월 예산은 만들어지지 않는다.
+        getBudget(a, "2026-10").andExpect(status().isOk()).andExpect(jsonPath("$.amount").isEmpty());
+        mvc.perform(get("/api/v1/months/2026-09/stats").header("Authorization", "Bearer " + a))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.budgetAmount").value(250000))
+                .andExpect(jsonPath("$.budgetBalanceAmount").value(250000));
+    }
+
+    @Test
+    void putRejectsFutureMonth() throws Exception {
+        String a = accessToken("a");
+
+        for (String month : List.of("2026-11", "2027-10")) {
             expectInvalid(putBudget(a, month, "{\"amount\":1000}"), "month");
         }
         assertThat(budgetCount()).isZero();
@@ -164,11 +194,12 @@ class BudgetApiTests {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.month").value("2026-11"))
                 .andExpect(jsonPath("$.amount").value(2000));
-        expectInvalid(putBudget(a, "2026-10", "{\"amount\":3000}"), "month");
+        // 서울 기준으로 10월은 이제 과거 월이라 바로잡을 수 있다.
+        putBudget(a, "2026-10", "{\"amount\":3000}").andExpect(status().isOk());
 
         assertThat(jdbc.queryForList("SELECT budget_month::text || ':' || amount FROM monthly_budgets ORDER BY id",
-                String.class)).containsExactly("2026-10-01:1000", "2026-11-01:2000");
-        getBudget(a, "2026-10").andExpect(status().isOk()).andExpect(jsonPath("$.amount").value(1000));
+                String.class)).containsExactly("2026-10-01:3000", "2026-11-01:2000");
+        getBudget(a, "2026-10").andExpect(status().isOk()).andExpect(jsonPath("$.amount").value(3000));
     }
 
     @Test
@@ -283,7 +314,7 @@ class BudgetApiTests {
     @Test
     void putChecksMonthBeforeBody() throws Exception {
         String a = accessToken("a");
-        expectInvalid(putBudget(a, "2026-09", "[]"), "month");
+        expectInvalid(putBudget(a, "2026-11", "[]"), "month");
         expectInvalid(putBudget(a, "2026-9", "{\"amount\":0}"), "month");
         assertThat(budgetCount()).isZero();
     }

@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.jayway.jsonpath.JsonPath;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -22,9 +23,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import org.altair.petgyebu_backend_renewal.budget.MonthlyBudgetRepository;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.support.MutableClock;
 import org.altair.petgyebu_backend_renewal.support.TestAuthConfig;
+import org.altair.petgyebu_backend_renewal.user.UserService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,6 +40,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.json.JsonCompareMode;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
@@ -57,6 +61,10 @@ class CategoryGoalApiTests {
     @Autowired MutableClock clock;
     @Autowired JdbcTemplate jdbc;
     @Autowired CategoryGoalService goalService;
+    @Autowired CategoryGoalRepository goals;
+    @Autowired MonthlyBudgetRepository budgets;
+    @Autowired UserService userService;
+    @Autowired TransactionTemplate tx;
 
     @BeforeEach
     void reset() {
@@ -280,6 +288,53 @@ class CategoryGoalApiTests {
                 .isLessThanOrEqualTo(100000L);
         assertThat(succeeded).isEqualTo(3);
         assertThat(goalCount()).isEqualTo(3);
+    }
+
+    // 목표 PUT은 예산 행을 먼저 잠그고 목표 행을 쓴다. 탈퇴가 목표를 먼저 지우면 서로 기다려 교착 상태가 된다.
+    @Test
+    void withdrawalDuringGoalPutDoesNotDeadlock() throws Exception {
+        accessToken("a");
+        setBudget(1, "2026-10-01", 100000);
+        seedGoal(1, "2026-10-01", "CAFE", 30000);
+        LocalDate month = LocalDate.of(2026, 10, 1);
+        CountDownLatch budgetLocked = new CountDownLatch(1);
+        ExecutorService pool = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> put = pool.submit(() -> tx.executeWithoutResult(status -> {
+                budgets.findForUpdate(1, month);
+                budgetLocked.countDown();
+                awaitBlockedOnLock();
+                goals.upsert(1, month, "CAFE", 40000, OffsetDateTime.now());
+            }));
+            assertThat(budgetLocked.await(10, TimeUnit.SECONDS)).isTrue();
+            Future<?> withdraw = pool.submit(() -> userService.withdraw(1));
+
+            put.get(30, TimeUnit.SECONDS);
+            withdraw.get(30, TimeUnit.SECONDS);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM expenses WHERE user_id = 1", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM category_goals WHERE user_id = 1", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM monthly_budgets WHERE user_id = 1", Integer.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM users WHERE id = 1", Integer.class)).isZero();
+    }
+
+    // 다른 세션이 잠금을 기다리는 것이 보일 때까지 폴링한다.
+    private void awaitBlockedOnLock() {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            Integer waiting = jdbc.queryForObject("""
+                    SELECT count(*) FROM pg_stat_activity
+                    WHERE wait_event_type = 'Lock' AND datname = current_database()
+                    """, Integer.class);
+            if (waiting != null && waiting >= 1) {
+                return;
+            }
+            Thread.onSpinWait();
+        }
+        throw new IllegalStateException("탈퇴 트랜잭션이 잠금 대기에 들어가지 않았다.");
     }
 
     private void setBudget(long userId, String month, long amount) {

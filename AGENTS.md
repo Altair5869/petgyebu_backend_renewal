@@ -13,7 +13,7 @@
 ## MVP 범위
 
 - 수동 지출 입력·수정·삭제, 월별 목록·통계, 필수 월 예산, 반려동물 선택·현재 월 상태를 구현한다. 성장·레벨은 MVP에서 제외한다.
-- 3개 논리 테이블(`users`, `expenses`, `monthly_budgets`)의 필드·제약·삭제 방식은 `docs/00-renewal-development-guide.md`와 `docs/09-db-design.md`를 따른다. FK·UNIQUE는 유지하고 DB CHECK·ON DELETE CASCADE는 두지 않는다. 월 경계와 상태 기준도 `00`을 따른다.
+- 4개 논리 테이블(`users`, `expenses`, `monthly_budgets`, `category_goals`)의 필드·제약·삭제 방식은 `docs/00-renewal-development-guide.md`와 `docs/09-db-design.md`를 따른다. FK·UNIQUE는 유지하고 DB CHECK·ON DELETE CASCADE는 두지 않는다. 월 경계와 상태 기준도 `00`을 따른다.
 - 계좌 연동과 자동 수집, Batch, 푸시, 크레딧, 상점, 아이템, 자동 분류 등 MVP 밖의 기능·의존성은 추가하지 않는다. 월 합계 캐시는 실험 대상으로만 다루고 채택 전 성능·정합성을 검증한다.
 - Spring Data JDBC의 집합 경계를 명확히 하고 월 지출 행은 명시적 쿼리로 조회하고 합계·카테고리 집계는 Service의 도메인 객체에서 계산한다. `UNIQUE`, `CASCADE`, 잠금은 실제 불변식이나 동시성 요구가 있을 때만 사용한다.
 

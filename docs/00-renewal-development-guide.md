@@ -87,27 +87,28 @@
 - `users`에는 `last_login_time`, `active_session_id`, `refresh_token_hash`, `refresh_token_expires_at`을 둔다. 원본 리프레시 토큰은 DB에 저장하지 않는다. `last_login_time`은 소셜 로그인 성공 시 갱신한다.
 - `device_id`는 MVP 테이블에 추가하지 않는다. 기기 관리·푸시의 목적과 식별 방식이 정해질 때 재검토한다.
 - 로그아웃 요청은 현재 리프레시 토큰으로 서버의 활성 로그인을 지우고 204로 응답한다. 앱도 보관한 토큰을 지운다.
-- 탈퇴 시 지출 → 월 예산 → 사용자 순으로 **한 DB 트랜잭션에서 명시적으로 삭제**한다. DB `ON DELETE CASCADE`는 사용하지 않는다. 탈퇴 후 남은 토큰은 거부한다. 탈퇴와 겹친 지출 생성·예산 PUT이 사용자 FK 위반으로 실패하면 `401 UNAUTHORIZED`다. 탈퇴 중 같은 사용자의 행이 끼어들어 FK 위반이 나면 삭제 트랜잭션을 처음부터 다시 실행한다(최대 3회, 모두 실패하면 `500 INTERNAL_ERROR`).
+- 탈퇴 시 지출 → 월 예산 → 카테고리 목표 → 사용자 순으로 **한 DB 트랜잭션에서 명시적으로 삭제**한다. 예산을 목표보다 먼저 지워야 목표 PUT(예산 행 잠금 후 목표 저장)과 서로 반대 순서로 잠그는 교착 상태가 생기지 않는다. DB `ON DELETE CASCADE`는 사용하지 않는다. 탈퇴 후 남은 토큰은 거부한다. 탈퇴와 겹친 지출 생성·예산 PUT·목표 PUT이 사용자 FK 위반으로 실패하면 `401 UNAUTHORIZED`다. 탈퇴 중 같은 사용자의 행이 끼어들어 FK 위반이 나면 삭제 트랜잭션을 처음부터 다시 실행한다(최대 3회, 모두 실패하면 `500 INTERNAL_ERROR`).
 
 ## 7. 데이터 모델과 제약
 
-논리 테이블은 **`users`, `expenses`, `monthly_budgets` 세 개**다. 펫 상태·월 합계·사용률을 영구 컬럼이나 별도 테이블에 저장하지 않는다.
+논리 테이블은 **`users`, `expenses`, `monthly_budgets`, `category_goals` 네 개**다. 펫 상태·월 합계·사용률을 영구 컬럼이나 별도 테이블에 저장하지 않는다.
 
 | 테이블 | 확정된 주요 필드와 근거 |
 |---|---|
 | `users` | `id`, `provider`(KAKAO/GOOGLE), `provider_user_id`(공급자가 해당 사용자에게 부여한 ID), `pet_type`(온보딩 전 NULL), `created_at`, `last_login_time`, `active_session_id`, `refresh_token_hash`, `refresh_token_expires_at`. 별도의 `provider_id`는 `provider_user_id`와 같은 뜻이므로 두지 않는다. |
 | `expenses` | `id`, `user_id`, `amount`, `expense_date`, `category`, `memo`(`TEXT`), `created_at`, `updated_at`. `amount`는 이 테이블에서 지출액을 뜻한다. `idempotency_key`(`UUID`, NULL 허용)는 `(user_id, idempotency_key)`가 NULL이 아닐 때만 유일하다. |
 | `monthly_budgets` | `id`, `user_id`, `budget_month`(연도 포함, 해당 월 1일의 `DATE`), `amount`, `created_at`, `updated_at`. `amount`는 이 테이블에서 월 예산을 뜻한다. |
+| `category_goals` | `id`, `user_id`, `goal_month`(해당 월 1일의 `DATE`), `category`(`VARCHAR(20)`), `amount`, `created_at`, `updated_at`. `amount`는 이 테이블에서 카테고리 월 목표 금액을 뜻한다. |
 
-- `expenses.user_id`와 `monthly_budgets.user_id`는 DB FK를 유지하되 `ON DELETE CASCADE`를 두지 않는다.
-- `UNIQUE(provider, provider_user_id)`와 `UNIQUE(user_id, budget_month)`를 둔다. 동일 사용자·월 예산 PUT의 동시 요청은 단일 upsert로 한 행만 유지한다.
+- `expenses.user_id`, `monthly_budgets.user_id`, `category_goals.user_id`는 DB FK를 유지하되 `ON DELETE CASCADE`를 두지 않는다.
+- `UNIQUE(provider, provider_user_id)`, `UNIQUE(user_id, budget_month)`, `UNIQUE(user_id, goal_month, category)`를 둔다. 동일 사용자·월 예산 PUT과 동일 사용자·월·카테고리 목표 PUT의 동시 요청은 단일 upsert로 한 행만 유지한다.
 - 지출 목록을 위해 `(user_id, expense_date DESC, id DESC)` 인덱스를 둔다. 내용이 같은 지출은 막지 않으며, 지출의 UNIQUE는 재시도 중복 방지용 부분 인덱스 `(user_id, idempotency_key)`(키가 NULL이 아닐 때만)뿐이다.
 - 필수 필드의 `NOT NULL`, 합의한 FK·UNIQUE는 DB에 둔다. **금액 양수, 카테고리 7개, `budget_month`의 월 첫날 정규화 같은 업무 규칙은 애플리케이션에서 검증**하며 DB `CHECK`는 두지 않는다. API를 거치지 않는 직접 DB 변경은 이 검증을 우회하므로 마이그레이션·운영 절차에서 별도 확인한다.
 - `budget_month`는 단순한 월 번호가 아니다. API의 `YYYY-MM`을 서버가 해당 월 1일로 변환해 저장한다. 날짜·금액·카테고리 검증과 탈퇴 트랜잭션은 테스트한다.
 
 ## 8. API 경로와 응답 계약
 
-접두사는 `/api/v1`, `{month}`는 `YYYY-MM`이다. **16개 동작, 12개 고유 경로**다. 로그인 요청의 credential은 카카오 SDK 액세스 토큰·구글 ID 토큰이다(스토어 앱 기준).
+접두사는 `/api/v1`, `{month}`는 `YYYY-MM`이다. **19개 동작, 14개 고유 경로**다. 로그인 요청의 credential은 카카오 SDK 액세스 토큰·구글 ID 토큰이다(스토어 앱 기준).
 
 | # | 메서드 | 경로 | 확정된 용도 |
 |---:|---|---|---|
@@ -121,12 +122,15 @@
 | 8 | GET | `/api/v1/months/{month}/budget` | 해당 월 예산 조회, 미설정 시 `amount: null`. `{month}`는 지출 목록과 같이 2000-01부터 서울 기준 현재 월까지의 `YYYY-MM`만 허용하고 그 외는 400 `INVALID_REQUEST`(`month`) |
 | 9 | PUT | `/api/v1/months/{month}/budget` | 2000-01부터 서울 기준 현재 월까지 예산 생성·변경. 미래 월과 형식 오류는 400 `INVALID_REQUEST`(`month`) |
 | 10 | POST | `/api/v1/expenses` | 지출 생성. 선택 헤더 `Idempotency-Key`(UUID)가 있으면 같은 사용자·키·내용의 재시도는 새로 만들지 않고 200과 기존 지출을 돌려준다 |
-| 11 | GET | `/api/v1/months/{month}/expenses` | 지출 커서 목록 |
+| 11 | GET | `/api/v1/months/{month}/expenses` | 지출 커서 목록. 선택 `category`(7개 값)로 한 카테고리만 거를 수 있다. 같은 정렬·`limit`·커서 규칙이며 잘못된 값은 400 `INVALID_REQUEST`(`category`) |
 | 12 | GET | `/api/v1/expenses/{expenseId}` | 지출 단건 조회·수정 초기값 |
 | 13 | PATCH | `/api/v1/expenses/{expenseId}` | 지출 일부 수정, 날짜의 월 이동 가능 |
 | 14 | DELETE | `/api/v1/expenses/{expenseId}` | 지출 삭제 |
 | 15 | GET | `/api/v1/months/{month}/stats` | 현재·과거 월 숫자 통계 |
 | 16 | GET | `/api/v1/insights` | 서울 기준 오늘의 카테고리별 이번 주·지난주 같은 요일 범위 비교와 현재 월 예산 소진 예측. 요청 파라미터 없음, 펫·예산 미설정이어도 200 |
+| 17 | GET | `/api/v1/months/{month}/category-goals` | 그 달 카테고리 목표와 사용 현황. 목표·예산이 없어도 200 |
+| 18 | PUT | `/api/v1/months/{month}/category-goals/{category}` | 카테고리 목표 생성·변경. 그 달 예산이 필요하고 목표 합이 예산을 넘으면 409 |
+| 19 | DELETE | `/api/v1/months/{month}/category-goals/{category}` | 카테고리 목표 삭제, 목표가 없어도 204 |
 
 ### 공통 응답 필드
 
@@ -134,6 +138,7 @@
 - 예산 GET/PUT은 `{month, amount}`를 반환한다. PUT 요청은 `{amount}`다. 미설정 과거 월은 `amount: null`이다.
 - 홈은 `month, petType, petState, budgetAmount, spentAmount, usagePercent, budgetBalanceAmount`를 반환한다. 카테고리·지출 목록은 포함하지 않는다.
 - 통계는 `month, budgetAmount, spentAmount, expenseCount, usagePercent, budgetBalanceAmount, categories`를 반환한다. 각 카테고리는 `category, spentAmount, expenseCount, sharePercent`를 가진다. **펫 필드는 통계에 없다.** 예산이 없는 월은 과거·현재 모두 200으로 `budgetAmount, usagePercent, budgetBalanceAmount`만 `null`이다.
+- 목표 GET은 `month, budgetAmount, goalTotalAmount, goalsExceedBudget, goals`를 반환한다. `goals`는 목표가 있는 카테고리만 `Category` 선언 순서로 담고 각 항목은 `category, goalAmount, spentAmount, remainingAmount, usagePercent`를 가진다. `spentAmount`는 통계의 카테고리 `spentAmount`와 같은 값, `remainingAmount = goalAmount - spentAmount`(음수면 초과), `usagePercent`는 홈·통계와 같이 소수 첫째 자리에서 버리며 100을 넘을 수 있다. 예산이 없으면 `budgetAmount: null`, `goalsExceedBudget: false`다. 목표 PUT 요청은 `{amount}`(1원 이상 1억 원 이하 정수)이고 200 `{month, category, amount}`를 반환한다. DELETE는 204다.
 - 인사이트는 `today, weekly, forecast`를 반환한다. `weekly`는 `thisWeek{from,to}`, `lastWeek{from,to}`(월요일 시작 달력 주, 이번 주 월요일~오늘과 7일 전 같은 요일 범위, 양 끝 포함)와 `categories`(`category, thisWeekAmount, lastWeekAmount, changeAmount = 이번 주 - 지난주`)를 가진다. `categories`는 두 범위 중 한쪽에라도 지출이 있는 카테고리만 `changeAmount` 내림차순·동률 `Category` 선언 순서이며 지출이 없으면 빈 배열이다. `forecast`는 `status, dailyAverageAmount, exhaustionDate`를 가진다. 인증 실패 401 외 오류 응답은 없다.
 - 로그인과 토큰 갱신 응답은 `accessToken, refreshToken, accessExpiresInSeconds`를 반환한다. 액세스 만료 초는 `900`이다. 갱신 요청은 현재 `refreshToken`을 보낸다. 로그아웃도 현재 리프레시 토큰으로 요청한다.
 - 로그인 요청 본문은 `{credential}`이다. `credential`은 4,096자 이하이며 넘으면 공급자 호출 전에 `400 INVALID_REQUEST`(`credential`)이다. `credential`은 카카오는 SDK가 발급한 액세스 토큰, 구글은 Google Sign-In의 ID 토큰이다. 서버는 카카오 토큰 정보 API(`app_id` 일치)와 구글 JWKS(서명·`iss`·`aud`·`exp`)로 확인한다. 토큰이 틀리면 `401 SOCIAL_LOGIN_FAILED`, 공급자 장애·응답 이상·해당 공급자 설정 누락이면 `503 SOCIAL_LOGIN_UNAVAILABLE`이다. `{provider}`는 `kakao`·`google`이며 대소문자를 구분하지 않는다. 로그인·갱신·로그아웃 세 경로는 `Authorization` 헤더가 있어도 무시하므로 만료된 액세스 토큰으로도 갱신·로그아웃할 수 있다.
@@ -161,7 +166,9 @@
 - 공통 오류 응답은 `code`와 `message`를 가진다. 입력 오류에는 해당 필드 정보를 추가한다. 잘못된 입력은 400, 로그인 필요·무효 토큰은 401, 없거나 다른 사용자의 지출 ID는 구분 없이 `404 EXPENSE_NOT_FOUND`다. 프레임워크 단계 오류도 같은 형식이다: 없는 경로 `404 NOT_FOUND`(인증 후), 지원하지 않는 메서드 `405 METHOD_NOT_ALLOWED`(`Allow` 헤더 포함), 지원하지 않는 Content-Type `415 UNSUPPORTED_MEDIA_TYPE`, 처리되지 않은 서버 오류 `500 INTERNAL_ERROR`(내부 오류 내용은 응답에 넣지 않는다).
 - `POST /expenses`의 `Idempotency-Key` 헤더는 선택이며 없으면 매번 새 지출을 만든다. 값은 표준 36자 UUID(대소문자 무관)이며 형식이 틀리면 `400 INVALID_REQUEST`(`Idempotency-Key`)다. 본문 검증이 키 조회보다 먼저다. 같은 사용자·같은 키에 정규화 후 `amount`·`expenseDate`·`category`·`memo`가 같으면 `200`과 기존 지출, 본문이 다르면 `409 IDEMPOTENCY_KEY_REUSED`다. 지출을 삭제하면 그 키로 다시 `201`로 만들 수 있다.
 - 인증 관련 오류 코드: 입력 오류 `400 INVALID_REQUEST`(`fields` 포함), 공급자 확인 실패 `401 SOCIAL_LOGIN_FAILED`, 토큰 없음·무효·만료·종료된 로그인 `401 UNAUTHORIZED`(사유 구분 없음), 공급자 장애·응답 이상·설정 누락 `503 SOCIAL_LOGIN_UNAVAILABLE`.
-- 성공 응답은 지출 생성 201(같은 `Idempotency-Key` 재시도는 200), 조회·수정 200, 지출 삭제·로그아웃·탈퇴 204다. 예산 PUT은 생성·변경 모두 200이다.
+- 목표 규칙: 목표는 달마다 따로 정하며 다음 달로 이어지지 않는다. `{month}`는 예산과 같이 2000-01부터 서울 기준 현재 월까지만 받는다. `{category}`는 7개 값(대소문자는 지출 생성과 같다)이다. PUT 검사 순서는 `month` → `category` → 본문 → 예산 존재 → 합계 한도이며, 그 달 예산이 없으면 409 `BUDGET_REQUIRED`, `(다른 카테고리 목표 합) + amount > 예산`이면 409 `CATEGORY_GOALS_EXCEED_BUDGET`(합이 예산과 같으면 허용, 행은 바뀌지 않음)이다. 이 규칙은 하나뿐이어서 예산이 이미 목표 합보다 낮은 상태에서 목표를 줄이는 PUT도 결과 합이 예산을 넘으면 막고, 목표 삭제나 예산 증액으로 푼다. 예산을 목표 합보다 낮추는 것은 허용하며 이때 목표 GET이 `goalsExceedBudget: true`를 내려 앱이 알린다. 목표 PUT은 한 트랜잭션에서 그 사용자·월의 예산 행을 `SELECT … FOR UPDATE`로 잠근 뒤 합계를 검사하고 upsert하므로 동시 PUT이 한도를 넘지 않는다. DELETE는 예산이 없어도 400·409 없이 204이며 다른 사용자의 행은 건드리지 않는다. 펫 상태는 카테고리 목표와 무관하게 전체 예산 기준이다.
+- 지출 목록의 입력 검증 순서는 `month` → `limit` → `category` → `cursor`다.
+- 성공 응답은 지출 생성 201(같은 `Idempotency-Key` 재시도는 200), 조회·수정 200, 지출 삭제·로그아웃·탈퇴 204다. 예산 PUT과 목표 PUT은 생성·변경 모두 200이며 목표 삭제는 204다.
 
 ## 9. 캐시 실험
 
@@ -179,7 +186,7 @@
 4. 지출의 생성·수정·삭제와 현재 월 예산 변경 뒤 홈·통계 값이 일치한다. 과거 월 예산 변경은 그 달 통계에만 반영되고 홈·인사이트에는 영향이 없다. 날짜를 월 사이로 이동하면 두 월이 갱신된다. 과거 월에는 펫이 없다.
 5. 메모 삭제 후 목록에는 카테고리가 제목으로 보인다. 카테고리 미선택 지출 생성은 `OTHER`로 저장되며 지출 수정의 `category: null`은 거부된다.
 6. 커서 목록은 날짜·ID 역순으로 이어지고 마지막 페이지에서 `nextCursor: null`을 반환한다. 다른 사용자의 지출 접근과 잘못된 커서를 거부한다.
-7. 새 기기 로그인·로그아웃·탈퇴 후 이전 액세스·리프레시 토큰이 거부된다. 탈퇴 도중 오류가 나면 사용자·지출·예산 삭제가 함께 롤백된다.
+7. 새 기기 로그인·로그아웃·탈퇴 후 이전 액세스·리프레시 토큰이 거부된다. 탈퇴 도중 오류가 나면 사용자·지출·예산·목표 삭제가 함께 롤백된다.
 8. 캐시 실험 시 사용자·월 값이 섞이지 않고 무효화·장애 상황에서도 DB 원본과 일치한다.
 
 ## 11. 후속 결정

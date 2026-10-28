@@ -2,7 +2,7 @@
 
 - 갱신: 2026-10-11
 - 기준: [리뉴얼 개발 기준](00-renewal-development-guide.md), [스프린트 계획](06-sprint-plan.md), [구현 맵](08-feature-implementation-map.md), [DB 설계](09-db-design.md)
-- 범위: `petgyebu_backend_renewal` 백엔드와 별도 React Native 앱. 백엔드 `M-001`~`M-012`, 앱 `APP-001`~`APP-007`을 유지한다.
+- 범위: `petgyebu_backend_renewal` 백엔드와 별도 React Native 앱. 백엔드 `M-001`~`M-013`, 앱 `APP-001`~`APP-008`을 유지한다.
 - 상태: 아래 체크는 **구현 작업**의 완료 여부다. 문서 수정이나 이전 제품의 완료 기록만으로 체크하지 않는다. 현재 코드와 앱의 구현·검증 증거가 없는 항목은 `[ ]`로 둔다.
 
 ## 공통 완료 기준
@@ -20,7 +20,7 @@
 | `APP-001` | **앱 기반 생성.** 별도 React Native 앱 프로젝트에서 iOS·Android 기본 실행과 백엔드 API 주소 설정을 확인한다. 앱 작업의 PR·검증은 앱 저장소에 기록한다. | — | [x] |
 | `M-002` | **세 테이블 Flyway 기준선.** 빈 PostgreSQL에 `users`, `expenses`, `monthly_budgets`를 만들고 확정된 필드, NOT NULL·FK·두 UNIQUE·지출 목록 인덱스를 검증한다. DB `CHECK`와 `ON DELETE CASCADE`, 이전 제품 마이그레이션은 넣지 않는다. | `M-001` | [x] |
 | `M-003` | **카카오·구글 로그인과 세션.** `(provider, provider_user_id)`로 계정을 식별한다. 자체 액세스·리프레시 토큰을 발급하고 15분·마지막 사용 후 30일 만료, 갱신 시 토큰 교체, 한 활성 로그인, 로그아웃을 검증한다. 이전 액세스·리프레시 토큰과 잘못된 인증은 거부하고 `last_login_time`·세션 ID·토큰 해시·만료를 확인한다. 로그인 credential은 카카오 SDK 액세스 토큰·구글 ID 토큰이며, 앱인토스용 토스 로그인은 후속 작업이다. | `M-002` | [x] |
-| `M-004` | **내 정보·탈퇴.** 선택 전 `petType: null`인 내 정보를 반환한다. 탈퇴는 지출 → 예산 → 사용자 순으로 한 트랜잭션에서 삭제한다. 탈퇴 뒤 토큰은 거부되고 삭제 중 실패하면 모든 행이 롤백된다. | `M-003` | [x] |
+| `M-004` | **내 정보·탈퇴.** 선택 전 `petType: null`인 내 정보를 반환한다. 탈퇴는 지출 → 예산 → 사용자 순으로 한 트랜잭션에서 삭제한다(`M-013`에서 예산 다음에 카테고리 목표가 추가됐다). 탈퇴 뒤 토큰은 거부되고 삭제 중 실패하면 모든 행이 롤백된다. | `M-003` | [x] |
 | `APP-002` | **로그인·계정 화면.** 카카오·구글 로그인, 앱 재시작 후 로그인 유지, 토큰 갱신·만료 안내, 새 로그인으로 이전 세션 종료, 내 정보, 로그아웃·탈퇴 확인을 iOS·Android에서 검증한다. | `APP-001`, `M-003`, `M-004` | [x] |
 
 > `M-001` 검증 기록 (2026-10-11): `build.gradle`의 Java 25·Spring Boot 4.1.1·Gradle Wrapper 9.7.1, Spring Web MVC·Data JDBC·PostgreSQL·Flyway·Testcontainers 의존성과 `application.yaml`의 앱 이름을 `05-infra-stack.md`와 대조했다. 로컬 Java 25.0.4.1·Docker 28.5.1에서 `./gradlew test --no-daemon --rerun-tasks` 통과(테스트 1개, 실패 0개). 현재 설정 파일은 앱 이름만 담고 있으며 DB 접속은 테스트의 `@ServiceConnection`으로 제공한다. 운영 DB·토큰·소셜 비밀값 설정은 해당 기능·배포 작업에서 환경 변수로 연결한다.
@@ -102,6 +102,15 @@
 | `APP-007` | **과거 월 예산 입력·수정 화면.** 월별 상세에서 과거 월 예산을 넣거나 고칠 수 있다. 저장 뒤 그 달 통계의 예산·사용률·잔액이 갱신되고 과거 월에는 펫을 보이지 않는다. | `M-012`, `APP-005` | [ ] |
 
 > `M-012` 검증 기록 (2026-10-28): `BudgetService.put`에서 현재 월 검사를 없애 PUT이 GET과 같은 `Months.parsePastOrCurrent`(2000-01~서울 현재 월)만 따른다. 월 검사가 본문보다 먼저인 순서와 단일 upsert는 그대로다. `BudgetApiTests`로 과거 월(2026-09, 2000-01) 생성과 같은 행 id를 유지한 교체, 과거 예산이 그 달 통계의 예산·사용률·잔액에 반영됨, 과거 예산만 있으면 현재 월 예산은 없고 홈 409 `BUDGET_REQUIRED`·인사이트 `NO_BUDGET`, 미래 월 PUT 400(`month`)과 행 미생성, 서울 월 경계(11/01 00:30에 10월은 과거 월로 정정 가능)를 검증했다. API 경로·스키마는 바꾸지 않았다. `./gradlew cleanTest test --no-daemon` 통과(테스트 226개, 실패 0개).
+
+## 후속 — 카테고리 목표
+
+| ID | 작업과 완료 기준 | 의존 | 상태 |
+|---|---|---|---|
+| `M-013` | **카테고리 목표 API와 지출 목록 카테고리 필터.** `V3`로 `category_goals`(`UNIQUE(user_id, goal_month, category)`)를 추가한다. `GET /api/v1/months/{month}/category-goals`는 `month, budgetAmount, goalTotalAmount, goalsExceedBudget, goals`를, `PUT …/{category}`는 `{amount}`로 생성·변경해 200 `{month, category, amount}`를, `DELETE …/{category}`는 204(없어도 204)를 반환한다. 목표 합이 월 예산을 넘으면 409 `CATEGORY_GOALS_EXCEED_BUDGET`, 예산이 없으면 409 `BUDGET_REQUIRED`다. PUT은 예산 행을 `FOR UPDATE`로 잠근 뒤 검사한다. 예산을 목표 합보다 낮추는 것은 허용하고 GET이 `goalsExceedBudget: true`를 낸다. `GET /api/v1/months/{month}/expenses?category=`는 한 카테고리만 같은 정렬·커서로 돌려준다(검증 순서 month → limit → category → cursor). 탈퇴는 지출 → 예산 → 카테고리 목표 → 사용자 순이다. 기능 `F-M08`, `F-M03`. | `M-007`, `M-005` | [x] |
+| `APP-008` | **카테고리 목표 화면.** 목표 설정·변경·삭제, 사용 현황(쓴 금액·남은 금액·사용률), 목표 합이 예산을 넘는 상태의 초과 안내, 카테고리별 지출 목록을 보여준다. | `M-013`, `APP-005` | [ ] |
+
+> `M-013` 검증 기록 (2026-10-28): `goal` 패키지로 구현했다. `CategoryGoalRepository`는 행 조회·upsert·삭제와 탈퇴용 `deleteAllOfUser`만 맡고, 합계·잔액·사용률·`goalsExceedBudget`은 DB 없이 `CategoryGoals`가 계산한다. 목표 PUT은 `MonthlyBudgetRepository`의 `FOR UPDATE` 잠금 조회로 예산 행을 먼저 잠근 뒤 한도를 검사한다. 탈퇴는 이 잠금과 반대 순서로 잠그지 않도록 지출 → 월 예산 → 카테고리 목표 → 사용자 순으로 지운다. 지출 목록은 `findFirstPageInCategory`·`findPageAfterInCategory`를 더했고 기존 인덱스를 그대로 쓴다. 테스트: `CategoryGoalsTests` 6개(선언 순서, 초과 시 음수 잔액·100% 초과, 사용률 버림, 합계·교체, `goalsExceedBudget` 경계), `CategoryGoalApiTests` 14개(응답 필드, 생성 후 같은 행 교체, 합 = 예산 허용·1원 초과 409와 행 불변, 예산 없음 409, 예산을 낮춘 뒤 `goalsExceedBudget` true와 PUT 409, 멱등 DELETE, 과거 월 허용·미래 월 400, 검증 순서, 사용자별 격리, 미인증 401, 서로 다른 카테고리 동시 PUT의 한도 유지, `withdrawalDuringGoalPutDoesNotDeadlock`), `ExpenseApiTests`의 카테고리 필터 4개(해당 카테고리만 정렬 순서, 커서 페이징, 다른 사용자 제외, 잘못된 값 400), `FlywayBaselineSchemaTests`(네 테이블, 목표 UNIQUE)와 `UserApiTests`(탈퇴가 목표 행도 지우고 롤백됨)를 갱신했다. 처음에 탈퇴를 예산 → 목표 순서가 아니라 목표를 예산보다 먼저 지우게 했더니 목표 PUT과 교착 상태가 날 수 있어 순서를 바꿨고 위 테스트로 막았다. `./gradlew cleanTest test --no-daemon` 통과(테스트 251개, 실패 0개).
 
 ## 출시 준비와 후속 실험
 

@@ -25,7 +25,7 @@
   - 예산 없음: 409 `BUDGET_REQUIRED`, 메시지 "이 달 예산을 먼저 설정해야 합니다."
   - 한도 초과: 409 `CATEGORY_GOALS_EXCEED_BUDGET`, 메시지 "카테고리 목표 합계가 월 예산을 넘을 수 없습니다."
 - 사용률은 `BudgetUsage(goalAmount, spentAmount).usagePercent()`로 계산한다(소수 첫째 자리 버림, 100 초과 가능).
-- 탈퇴 삭제 순서는 지출 → 카테고리 목표 → 월 예산 → 사용자이며, 한 트랜잭션에서 지운다. FK 재시도는 최대 3회다.
+- 탈퇴 삭제 순서는 지출 → 월 예산 → 카테고리 목표 → 사용자이며, 한 트랜잭션에서 지운다. FK 재시도는 최대 3회다.
 - 홈·통계·인사이트 응답은 바꾸지 않는다. 펫 상태는 전체 예산 기준 그대로다.
 - 테스트 기준 시각: `TestAuthConfig.START` = 2026-10-13T00:00Z(서울 10-13 09:00, 현재 월 2026-10).
 - 완료 전 `./gradlew test --no-daemon` 전체 통과.
@@ -74,7 +74,7 @@
 - [ ] **Step 3: 구현**
   - V3: 스펙 3절의 컬럼과 `CONSTRAINT uq_category_goals_user_month_category UNIQUE (user_id, goal_month, category)`.
   - 엔티티와 리포지토리.
-  - `UserService`: 생성자에 `CategoryGoalRepository goals`를 받는다. `withdraw`에서 `expenses.deleteAllOfUser` 다음, `budgets.deleteAllOfUser` 앞에 `goals.deleteAllOfUser(userId)`를 넣는다. 주석을 "지출 → 카테고리 목표 → 월 예산 → 사용자 순"으로 고친다.
+  - `UserService`: 생성자에 `CategoryGoalRepository goals`를 받는다. `withdraw`에서 `budgets.deleteAllOfUser` 다음, `users.deleteUser` 앞에 `goals.deleteAllOfUser(userId)`를 넣는다(목표 PUT과의 교착 상태를 피하는 순서). 주석을 "지출 → 월 예산 → 카테고리 목표 → 사용자 순"으로 고친다.
   - TRUNCATE 11곳을 바꾼다.
 - [ ] **Step 4: 통과 확인.** `./gradlew test --no-daemon`을 실행한다. 기대 결과: 전체 PASS.
 - [ ] **Step 5: 커밋.** `feat: add category_goals table and delete goals on withdrawal`

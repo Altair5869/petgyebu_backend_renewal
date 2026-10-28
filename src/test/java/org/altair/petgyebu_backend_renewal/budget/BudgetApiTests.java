@@ -150,12 +150,30 @@ class BudgetApiTests {
         assertThat(jdbc.queryForObject("SELECT id FROM monthly_budgets WHERE budget_month = DATE '2026-09-01'", Long.class))
                 .isEqualTo(septemberId);
         getBudget(a, "2026-09").andExpect(status().isOk()).andExpect(jsonPath("$.amount").value(250000));
-        // 과거 예산을 넣어도 현재 월 예산은 만들어지지 않는다.
-        getBudget(a, "2026-10").andExpect(status().isOk()).andExpect(jsonPath("$.amount").isEmpty());
+
+        jdbc.update("INSERT INTO expenses (user_id, amount, expense_date, category) VALUES (1, 50000, DATE '2026-09-15', 'FOOD')");
         mvc.perform(get("/api/v1/months/2026-09/stats").header("Authorization", "Bearer " + a))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.budgetAmount").value(250000))
-                .andExpect(jsonPath("$.budgetBalanceAmount").value(250000));
+                .andExpect(jsonPath("$.spentAmount").value(50000))
+                .andExpect(jsonPath("$.usagePercent").value(20.0))
+                .andExpect(jsonPath("$.budgetBalanceAmount").value(200000));
+    }
+
+    @Test
+    void pastBudgetDoesNotCountAsCurrentMonthBudget() throws Exception {
+        String a = accessToken("a");
+        jdbc.update("UPDATE users SET pet_type = 'CAT' WHERE id = 1");
+        putBudget(a, "2026-09", "{\"amount\":300000}").andExpect(status().isOk());
+
+        getBudget(a, "2026-10").andExpect(status().isOk()).andExpect(jsonPath("$.amount").isEmpty());
+        mvc.perform(get("/api/v1/home").header("Authorization", "Bearer " + a))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("BUDGET_REQUIRED"));
+        mvc.perform(get("/api/v1/insights").header("Authorization", "Bearer " + a))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.forecast.status").value("NO_BUDGET"));
+        assertThat(budgetCount()).isEqualTo(1);
     }
 
     @Test

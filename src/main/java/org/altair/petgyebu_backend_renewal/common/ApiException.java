@@ -52,6 +52,16 @@ public class ApiException extends RuntimeException {
         return new ApiException(HttpStatus.CONFLICT, "BUDGET_REQUIRED", "현재 월 예산을 먼저 설정해야 합니다.", null);
     }
 
+    // 카테고리 목표를 저장할 그 달 예산이 없다. 코드는 BUDGET_REQUIRED로 같다.
+    public static ApiException monthBudgetRequired() {
+        return new ApiException(HttpStatus.CONFLICT, "BUDGET_REQUIRED", "이 달 예산을 먼저 설정해야 합니다.", null);
+    }
+
+    public static ApiException categoryGoalsExceedBudget() {
+        return new ApiException(HttpStatus.CONFLICT, "CATEGORY_GOALS_EXCEED_BUDGET",
+                "카테고리 목표 합계가 월 예산을 넘을 수 없습니다.", null);
+    }
+
     public static ApiException idempotencyKeyReused() {
         return new ApiException(HttpStatus.CONFLICT, "IDEMPOTENCY_KEY_REUSED",
                 "같은 Idempotency-Key로 다른 내용의 지출이 이미 저장되었습니다.", null);

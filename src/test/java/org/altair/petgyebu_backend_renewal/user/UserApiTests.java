@@ -55,7 +55,7 @@ class UserApiTests {
 
     @BeforeEach
     void reset() {
-        jdbc.execute("TRUNCATE expenses, monthly_budgets, users RESTART IDENTITY");
+        jdbc.execute("TRUNCATE expenses, category_goals, monthly_budgets, users RESTART IDENTITY");
         clock.set(TestAuthConfig.START);
     }
 
@@ -100,8 +100,8 @@ class UserApiTests {
 
         withdraw(access).andExpect(status().isNoContent());
 
-        assertThat(counts(1)).containsExactly(0, 0, 0);
-        assertThat(counts(2)).containsExactly(1, 2, 1);
+        assertThat(counts(1)).containsExactly(0, 0, 0, 0);
+        assertThat(counts(2)).containsExactly(1, 2, 1, 1);
     }
 
     // 회귀 방지용: 래치로 출발만 맞추며 트랜잭션이 실제로 겹친다는 보장은 없다.
@@ -131,8 +131,8 @@ class UserApiTests {
             pool.shutdownNow();
         }
 
-        assertThat(counts(1)).containsExactly(0, 0, 0);
-        assertThat(counts(2)).containsExactly(1, 2, 1);
+        assertThat(counts(1)).containsExactly(0, 0, 0, 0);
+        assertThat(counts(2)).containsExactly(1, 2, 1, 1);
     }
 
     @Test
@@ -145,8 +145,8 @@ class UserApiTests {
 
         userService.withdraw(1);
 
-        assertThat(counts(1)).containsExactly(0, 0, 0);
-        assertThat(counts(2)).containsExactly(1, 2, 1);
+        assertThat(counts(1)).containsExactly(0, 0, 0, 0);
+        assertThat(counts(2)).containsExactly(1, 2, 1, 1);
     }
 
     @Test
@@ -182,7 +182,7 @@ class UserApiTests {
             jdbc.execute("DROP FUNCTION fail_user_delete()");
         }
 
-        assertThat(counts(1)).containsExactly(1, 2, 1);
+        assertThat(counts(1)).containsExactly(1, 2, 1, 1);
     }
 
     @Test
@@ -201,8 +201,8 @@ class UserApiTests {
             dropRacingInsertTrigger();
         }
 
-        assertThat(counts(1)).containsExactly(0, 0, 0);
-        assertThat(counts(2)).containsExactly(1, 2, 1);
+        assertThat(counts(1)).containsExactly(0, 0, 0, 0);
+        assertThat(counts(2)).containsExactly(1, 2, 1, 1);
     }
 
     @Test
@@ -219,7 +219,7 @@ class UserApiTests {
             dropRacingInsertTrigger();
         }
 
-        assertThat(counts(1)).containsExactly(1, 2, 1);
+        assertThat(counts(1)).containsExactly(1, 2, 1, 1);
     }
 
     @Test
@@ -284,7 +284,7 @@ class UserApiTests {
         assertThat(petType(1)).isEqualTo("DOG");
         assertThat(petType(2)).isEqualTo("CAT");
         assertThat(snapshot(1)).isEqualTo(before);
-        assertThat(counts(2)).containsExactly(1, 2, 1);
+        assertThat(counts(2)).containsExactly(1, 2, 1, 1);
     }
 
     @Test
@@ -373,15 +373,18 @@ class UserApiTests {
                 userId);
         jdbc.update("INSERT INTO expenses (user_id, amount, expense_date, category) VALUES (?, 2000, '2026-10-02', 'OTHER')",
                 userId);
+        jdbc.update("INSERT INTO category_goals (user_id, goal_month, category, amount) VALUES (?, '2026-10-01', 'CAFE', 1000)",
+                userId);
         jdbc.update("INSERT INTO monthly_budgets (user_id, budget_month, amount) VALUES (?, '2026-10-01', 100000)",
                 userId);
     }
 
-    // [users, expenses, monthly_budgets] 행 수
+    // [users, expenses, category_goals, monthly_budgets] 행 수
     private Integer[] counts(long userId) {
         return new Integer[] {
                 jdbc.queryForObject("SELECT count(*) FROM users WHERE id = ?", Integer.class, userId),
                 jdbc.queryForObject("SELECT count(*) FROM expenses WHERE user_id = ?", Integer.class, userId),
+                jdbc.queryForObject("SELECT count(*) FROM category_goals WHERE user_id = ?", Integer.class, userId),
                 jdbc.queryForObject("SELECT count(*) FROM monthly_budgets WHERE user_id = ?", Integer.class, userId)
         };
     }

@@ -57,7 +57,7 @@ class ExpenseApiTests {
 
     @BeforeEach
     void reset() {
-        jdbc.execute("TRUNCATE expenses, monthly_budgets, users RESTART IDENTITY");
+        jdbc.execute("TRUNCATE expenses, category_goals, monthly_budgets, users RESTART IDENTITY");
         clock.set(TestAuthConfig.START);
     }
 

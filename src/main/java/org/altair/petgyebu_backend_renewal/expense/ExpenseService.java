@@ -105,19 +105,25 @@ public class ExpenseService {
     }
 
     @Transactional(readOnly = true)
-    public Page list(long userId, String monthText, int limit, String cursor) {
+    public Page list(long userId, String monthText, int limit, String cursor, String categoryText) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);
         if (limit < 1 || limit > MAX_LIMIT) {
             throw ApiException.invalidRequest("limit", "1 이상 " + MAX_LIMIT + " 이하만 허용합니다.");
         }
+        Category category = categoryText == null ? null : Category.parse(categoryText);
+        Cursor c = cursor == null ? null : Cursor.decode(cursor, userId, month);
         Months.Range range = Months.range(month);
         // 한 건 더 읽어 다음 페이지가 실제로 있는지 확인한다.
         List<Expense> rows;
-        if (cursor == null) {
-            rows = expenses.findFirstPage(userId, range.from(), range.to(), limit + 1);
+        if (category == null) {
+            rows = c == null
+                    ? expenses.findFirstPage(userId, range.from(), range.to(), limit + 1)
+                    : expenses.findPageAfter(userId, range.from(), range.to(), c.expenseDate(), c.id(), limit + 1);
         } else {
-            Cursor c = Cursor.decode(cursor, userId, month);
-            rows = expenses.findPageAfter(userId, range.from(), range.to(), c.expenseDate(), c.id(), limit + 1);
+            rows = c == null
+                    ? expenses.findFirstPageInCategory(userId, range.from(), range.to(), category.name(), limit + 1)
+                    : expenses.findPageAfterInCategory(userId, range.from(), range.to(), category.name(),
+                            c.expenseDate(), c.id(), limit + 1);
         }
         if (rows.size() <= limit) {
             return new Page(rows, null);

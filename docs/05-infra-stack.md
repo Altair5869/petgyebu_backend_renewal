@@ -36,19 +36,19 @@ PostgreSQL 16 (users · expenses · monthly_budgets)
 
 한 계정에는 활성 로그인 하나만 둔다. 새 로그인은 기존 로그인을 무효화한다. `users.active_session_id`는 로그인 식별자이며 기기 ID가 아니다. 인증 요청은 액세스 토큰의 세션 ID를 현재 사용자 값과 비교해 종료된 로그인을 거부한다. DB에는 원본 리프레시 토큰 대신 해시와 만료 시각을 저장한다. `last_login_time`은 소셜 로그인 성공 시 갱신한다. `device_id`는 MVP에 저장하지 않는다.
 
-로그아웃은 서버의 현재 로그인을 무효화하고 앱이 보관한 토큰을 지운다. 회원 탈퇴는 지출 → 월 예산 → 사용자 순으로 한 DB 트랜잭션에서 명시적으로 삭제한다. 외래 키는 유지하되 `ON DELETE CASCADE`를 사용하지 않는다.
+로그아웃은 서버의 현재 로그인을 무효화하고 앱이 보관한 토큰을 지운다. 회원 탈퇴는 지출 → 월 예산 → 카테고리 목표 → 사용자 순으로 한 DB 트랜잭션에서 명시적으로 삭제한다. 외래 키는 유지하되 `ON DELETE CASCADE`를 사용하지 않는다.
 
 ## 3. 데이터와 계산
 
-논리 테이블은 `users`, `expenses`, `monthly_budgets` 세 개다. 별도 펫·세션·월 집계 테이블은 두지 않는다. `users`에는 펫 종류와 현재 로그인 정보가, `expenses`에는 수동 지출이, `monthly_budgets`에는 사용자별 월 예산이 들어간다. 월 예산은 API의 `YYYY-MM`을 해당 월 첫날의 `DATE`로 바꿔 저장한다.
+논리 테이블은 `users`, `expenses`, `monthly_budgets`, `category_goals` 네 개다. 별도 펫·세션·월 집계 테이블은 두지 않는다. `users`에는 펫 종류와 현재 로그인 정보가, `expenses`에는 수동 지출이, `monthly_budgets`에는 사용자별 월 예산이, `category_goals`에는 사용자·월·카테고리별 목표 금액이 들어간다. 월 예산은 API의 `YYYY-MM`을 해당 월 첫날의 `DATE`로 바꿔 저장한다.
 
-DB에는 합의한 `NOT NULL`, 외래 키, `UNIQUE(provider, provider_user_id)`, `UNIQUE(user_id, budget_month)`를 둔다. 지출 목록의 날짜·ID 역순 조회를 위해 `(user_id, expense_date DESC, id DESC)` 인덱스를 둔다. 동일 사용자·월 예산의 동시 PUT은 한 행만 남기는 upsert로 처리한다. 금액 양수, 카테고리 일곱 가지, 예산 월 첫날 정규화는 애플리케이션에서 검증하고 DB `CHECK`는 두지 않는다. 직접 DB 변경은 이 검증을 우회하므로 마이그레이션·운영 절차에서 별도 확인한다.
+DB에는 합의한 `NOT NULL`, 외래 키, `UNIQUE(provider, provider_user_id)`, `UNIQUE(user_id, budget_month)`, `UNIQUE(user_id, goal_month, category)`를 둔다. 지출 목록의 날짜·ID 역순 조회를 위해 `(user_id, expense_date DESC, id DESC)` 인덱스를 둔다. 동일 사용자·월 예산의 동시 PUT은 한 행만 남기는 upsert로 처리한다. 금액 양수, 카테고리 일곱 가지, 예산 월 첫날 정규화는 애플리케이션에서 검증하고 DB `CHECK`는 두지 않는다. 직접 DB 변경은 이 검증을 우회하므로 마이그레이션·운영 절차에서 별도 확인한다.
 
 월 합계는 사용자와 `Asia/Seoul` 월 범위 `[첫날, 다음 달 첫날)`에 속한 지출 행을 DB에서 조회해 애플리케이션(`MonthlySpending`)에서 계산한다. 예산 잔액은 `budgetAmount - spentAmount`의 부호를 유지한다. 사용률 표시값은 소수 첫째 자리에서 버리고, 펫 상태는 버리기 전 실제 비율로 판정한다. 펫 상태는 현재 월에만 계산한다. 과거 월에는 펫 데이터가 없으며 예산 없는 과거 월은 예산 관련 값만 `null`이다. 카테고리 비중은 소수 첫째 자리 반올림이다. 정확한 필드와 경계는 개발 기준을 따른다.
 
 데이터 접근은 Spring Data JDBC로 한다. 단순 조회는 파생 쿼리를 쓰고, 다음 경우는 `@Query`의 PostgreSQL SQL로 쓴다. 예산·로그인의 `INSERT … ON CONFLICT … RETURNING` upsert, 리프레시 토큰의 조건부 `UPDATE`(비교와 교체를 한 문장에서 처리), `(expense_date, id)` 행 값 비교 커서, 월 범위 `(category, amount)` 행 조회(집계는 애플리케이션), 탈퇴의 명시적 `DELETE`다. JPA·QueryDSL은 도입하지 않는다(2026-10-25 재검토).
 
-- 세 테이블 사이에 연관 탐색이 없고 쓰기는 모두 한 문장 `UPDATE`다. 그래서 JPA의 연관 매핑·변경 감지·1차 캐시로 얻는 이점이 작다.
+- 네 테이블 사이에 연관 탐색이 없고 쓰기는 모두 한 문장 `UPDATE`다. 그래서 JPA의 연관 매핑·변경 감지·1차 캐시로 얻는 이점이 작다.
 - 원자적 upsert, 조건부 교체, 행 값 커서는 JPQL로 표현할 수 없다. JPA를 쓰면 네이티브 쿼리로 돌아가거나, 잠금·재시도를 새로 설계해야 한다.
 - 요청마다 실행되는 SQL이 코드에 그대로 보여야 성능을 측정하고 `EXPLAIN`으로 분석할 수 있다. flush 시점과 지연 로딩이 SQL을 바꾸면 이 대조가 어려워진다.
 - 모든 쿼리 조건이 고정(사용자·월 범위·커서)이라 QueryDSL이 강점을 보이는 동적 조건 조합이 없다.

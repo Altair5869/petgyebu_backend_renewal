@@ -66,4 +66,25 @@ public interface ExpenseRepository extends Repository<Expense, Long> {
             """)
     List<Expense> findPageAfter(long userId, LocalDate from, LocalDate to, LocalDate cursorDate, long cursorId,
             int limit);
+
+    // 카테고리 필터가 있는 첫 페이지. findFirstPage에 category 조건만 더했다.
+    @Query("""
+            SELECT * FROM expenses
+            WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to
+              AND category = :category
+            ORDER BY expense_date DESC, id DESC
+            LIMIT :limit
+            """)
+    List<Expense> findFirstPageInCategory(long userId, LocalDate from, LocalDate to, String category, int limit);
+
+    @Query("""
+            SELECT * FROM expenses
+            WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to
+              AND category = :category
+              AND (expense_date, id) < (:cursorDate, :cursorId)
+            ORDER BY expense_date DESC, id DESC
+            LIMIT :limit
+            """)
+    List<Expense> findPageAfterInCategory(long userId, LocalDate from, LocalDate to, String category,
+            LocalDate cursorDate, long cursorId, int limit);
 }

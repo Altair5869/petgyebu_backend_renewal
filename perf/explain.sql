@@ -52,6 +52,18 @@ LIMIT 21;
 EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
 SELECT * FROM monthly_budgets WHERE user_id = :uid AND budget_month = :'m_from';
 
+\echo == findFirstPageInCategory (limit 21)
+EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
+SELECT * FROM expenses
+WHERE user_id = :uid AND expense_date >= :'m_from' AND expense_date < :'m_to'
+  AND category = 'CAFE'
+ORDER BY expense_date DESC, id DESC
+LIMIT 21;
+
+\echo == categoryGoal findAll
+EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
+SELECT * FROM category_goals WHERE user_id = :uid AND goal_month = :'m_from';
+
 \echo == hasActiveSession
 EXPLAIN (ANALYZE, BUFFERS, COSTS OFF, SUMMARY ON)
 SELECT EXISTS (SELECT 1 FROM users WHERE id = :uid AND active_session_id = gen_random_uuid());

@@ -36,14 +36,7 @@ final class ExpenseFields {
     }
 
     static Category category(JsonNode node) {
-        if (node != null && node.isString()) {
-            for (Category category : Category.values()) {
-                if (category.name().equals(node.stringValue())) {
-                    return category;
-                }
-            }
-        }
-        throw ApiException.invalidRequest("category", "허용되지 않는 카테고리입니다.");
+        return Category.parse(node != null && node.isString() ? node.stringValue() : null);
     }
 
     // 생략·null·공백만 있는 메모는 null. 길이는 유니코드 코드 포인트 기준이다.

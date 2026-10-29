@@ -3,18 +3,19 @@
 - 갱신: 2026-10-11
 - 기준: [리뉴얼 개발 기준](00-renewal-development-guide.md), [기능명세](02-requirements-features.md), [스프린트 계획](06-sprint-plan.md)
 - 상태: 구현 범위·의존 관계를 보여주는 계획. 현재 코드의 구현 완료 표시가 아니다.
-- API 접두사: `/api/v1`; `{month}`는 `YYYY-MM`이다. **16개 동작, 12개 고유 경로, 3개 논리 테이블**이다.
+- API 접두사: `/api/v1`; `{month}`는 `YYYY-MM`이다. **19개 동작, 14개 고유 경로, 4개 논리 테이블**이다.
 
 ## 1. 기능과 구현 책임
 
 | 기능 | 스프린트 | 서버 책임 | 사용하는 데이터 |
 |---|---:|---|---|
-| `F-M01` 계정·인증 | 0 | 카카오·구글 계정 식별, 자체 토큰 발급·교체·무효화, 한 활성 로그인, 내 정보, 탈퇴 트랜잭션 | `users`; 탈퇴 시 `expenses`, `monthly_budgets` 명시적 삭제 |
+| `F-M01` 계정·인증 | 0 | 카카오·구글 계정 식별, 자체 토큰 발급·교체·무효화, 한 활성 로그인, 내 정보, 탈퇴 트랜잭션 | `users`; 탈퇴 시 `expenses`, `monthly_budgets`, `category_goals` 명시적 삭제 |
 | `F-M02` 펫 선택 | 1 | `CAT`·`DOG` 선택·변경. 별도 펫 테이블과 성장 계산 없음 | `users.pet_type` |
 | `F-M03` 수동 지출 | 1 | 생성·월별 커서 목록·단건 조회·부분 수정·삭제, 입력 검증, 사용자 소유권 확인 | `expenses` |
 | `F-M04` 월 예산 | 2 | 월별 예산 조회, 2000-01~현재 월 설정·변경(과거 월 정정 포함), 동시 PUT의 단일 upsert | `monthly_budgets` |
 | `F-M06` 현재 홈 | 2 | 현재 월의 지출 합계·예산 잔액·사용률·펫 상태 계산, 미설정 온보딩 오류 | `users`, `expenses`, `monthly_budgets` |
 | `F-M05` 월별 통계 | 3 | 현재·과거 월 총액·건수·카테고리 금액·건수·비중 계산. 과거 월 펫 응답 없음 | `expenses`, `monthly_budgets` |
+| `F-M08` 카테고리 목표 | 후속 | 월별 카테고리 목표 설정·변경·삭제, 목표 합 ≤ 예산(예산 행 잠금 후 검사), 사용 현황 조회, 월 지출 목록의 카테고리 필터 | `category_goals`, `expenses`, `monthly_budgets` |
 | `F-M07` 소비 인사이트 | 후속 | 이번 주·지난주 같은 요일 범위 카테고리 비교, 현재 월 예산 소진 예측. 펫·예산 없이도 200 | `expenses`, `monthly_budgets` |
 
 API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층은 같은 사용자·월 범위의 DB 원본 값으로 홈과 통계를 계산한다. 특정 클래스명·패키지나 토큰·커서의 내부 인코딩은 이 문서에서 고정하지 않는다. 스키마와 인덱스는 `09-db-design.md`를 따르며, 계약이 충돌하면 `00`의 데이터 계약을 우선한다.
@@ -27,20 +28,23 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 | 2 | `F-M01` | POST | `/api/v1/auth/refresh` | 현재 `refreshToken` → 두 토큰 교체, `accessExpiresInSeconds` | `users` |
 | 3 | `F-M01` | POST | `/api/v1/auth/logout` | 현재 `refreshToken`으로 활성 로그인 종료 → 204 | `users` |
 | 4 | `F-M01` | GET | `/api/v1/users/me` | `id`, `provider`(`KAKAO\|GOOGLE`), `petType`(`CAT\|DOG`); 선택 전 `petType: null` | `users` |
-| 5 | `F-M01` | DELETE | `/api/v1/users/me` | 지출 → 월 예산 → 사용자 순으로 한 트랜잭션에서 탈퇴 → 204 | 3개 테이블 |
+| 5 | `F-M01` | DELETE | `/api/v1/users/me` | 지출 → 월 예산 → 카테고리 목표 → 사용자 순으로 한 트랜잭션에서 탈퇴 → 204 | 4개 테이블 |
 | 6 | `F-M02` | PUT | `/api/v1/users/me/pet` | `petType: CAT\|DOG` 선택·변경 → 갱신된 내 정보. 생략·`null`·그 밖의 값(대소문자 구분)은 400 `INVALID_REQUEST`(`petType`) | `users` |
-| 7 | `F-M06` | GET | `/api/v1/home` | 현재 월의 `month`, `petType`, `petState`, `budgetAmount`, `spentAmount`, `usagePercent`, `budgetBalanceAmount` | 3개 테이블 |
+| 7 | `F-M06` | GET | `/api/v1/home` | 현재 월의 `month`, `petType`, `petState`, `budgetAmount`, `spentAmount`, `usagePercent`, `budgetBalanceAmount` | `users`, `expenses`, `monthly_budgets` |
 | 8 | `F-M04` | GET | `/api/v1/months/{month}/budget` | 해당 월 `{month, amount}`; 미설정이면 `amount: null`. 2000-01~현재 월 밖·형식 오류는 400 `month` | `monthly_budgets` |
 | 9 | `F-M04` | PUT | `/api/v1/months/{month}/budget` | 2000-01~현재 월을 `{amount}`로 생성·변경 → `{month, amount}`, 항상 200. 미래 월은 400 `month` | `monthly_budgets` |
 | 10 | `F-M03` | POST | `/api/v1/expenses` | `amount`, `expenseDate`, 선택 `category`·`memo` → 지출 응답, 201 | `expenses` |
-| 11 | `F-M03` | GET | `/api/v1/months/{month}/expenses` | `limit`, `cursor` → `items`, `nextCursor` | `expenses` |
+| 11 | `F-M03` | GET | `/api/v1/months/{month}/expenses` | `limit`, `cursor`, 선택 `category` → `items`, `nextCursor` | `expenses` |
 | 12 | `F-M03` | GET | `/api/v1/expenses/{expenseId}` | 본인 지출 단건·수정 초기값 → 지출 응답 | `expenses` |
 | 13 | `F-M03` | PATCH | `/api/v1/expenses/{expenseId}` | 전달한 필드만 수정, 날짜의 월 이동 가능 → 지출 응답 | `expenses` |
 | 14 | `F-M03` | DELETE | `/api/v1/expenses/{expenseId}` | 본인 지출 삭제 → 204 | `expenses` |
 | 15 | `F-M05` | GET | `/api/v1/months/{month}/stats` | 월별 숫자 통계와 카테고리 금액·건수·비중, 펫 필드 없음 | `expenses`, `monthly_budgets` |
 | 16 | `F-M07` | GET | `/api/v1/insights` | `today`, `weekly`(`thisWeek`, `lastWeek`, `categories`), `forecast`(`status`, `dailyAverageAmount`, `exhaustionDate`). 펫·예산 없어도 200 | `expenses`, `monthly_budgets` |
+| 17 | `F-M08` | GET | `/api/v1/months/{month}/category-goals` | `month`, `budgetAmount`, `goalTotalAmount`, `goalsExceedBudget`, `goals`(`category`, `goalAmount`, `spentAmount`, `remainingAmount`, `usagePercent`). 목표·예산 없어도 200 | `category_goals`, `expenses`, `monthly_budgets` |
+| 18 | `F-M08` | PUT | `/api/v1/months/{month}/category-goals/{category}` | `{amount}` → `{month, category, amount}`, 항상 200. 예산 없음 409 `BUDGET_REQUIRED`, 합 초과 409 `CATEGORY_GOALS_EXCEED_BUDGET` | `category_goals`, `monthly_budgets` |
+| 19 | `F-M08` | DELETE | `/api/v1/months/{month}/category-goals/{category}` | 본인 목표 삭제 → 204, 없어도 204 | `category_goals` |
 
-`PUT /users/me/pet`, 지출 조회·수정, 예산 조회, 홈·통계 조회 등 본문이 있는 성공 응답은 200이다. 지출 생성은 201, 지출 삭제·로그아웃·탈퇴는 204다. 로그인·갱신의 응답 필드와 오류 계약은 `00`을 따른다.
+`PUT /users/me/pet`, 지출 조회·수정, 예산 조회·PUT, 목표 조회·PUT, 홈·통계 조회 등 본문이 있는 성공 응답은 200이다. 지출 생성은 201, 지출 삭제·목표 삭제·로그아웃·탈퇴는 204다. 로그인·갱신의 응답 필드와 오류 계약은 `00`을 따른다.
 
 ## 3. 요청·응답과 오류의 공통 계약
 
@@ -78,6 +82,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 | 2 | 3 | 2 | `F-M04`, `F-M06` | 월 예산 upsert·유일성 검증 |
 | 3 | 1 | 1 | `F-M05` | 집계 쿼리와 날짜 범위 검증 |
 | 후속 | 1 | 1 | `F-M07` | 기존 인덱스로 최대 약 6주 범위 행 조회, 마이그레이션 없음 |
-| **합계** | **16** | **12** | `F-M01`~`F-M07` | **3개 논리 테이블** |
+| 후속 | 3 | 2 | `F-M08` | `V3`로 `category_goals`와 `UNIQUE(user_id, goal_month, category)` 추가 |
+| **합계** | **19** | **14** | `F-M01`~`F-M08` | **4개 논리 테이블** |
 
 스프린트 수량은 구현 계획이며 코드에 해당 API가 이미 존재한다는 뜻이 아니다. 앱 화면의 정보 순서·빈 상태·과거 월 표시 규칙은 `03-user-flow.md`를 따른다.

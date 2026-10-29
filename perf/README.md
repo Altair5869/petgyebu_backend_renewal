@@ -11,7 +11,7 @@ DB 원본 조회로 구현한 홈·통계·목록·지출 생성 API의 기준�
 
 ## 절차
 
-측정 전용 DB에서만 실행한다. `seed.sql`은 세 테이블을 `TRUNCATE`한다.
+측정 전용 DB에서만 실행한다. `seed.sql`은 `expenses`, `category_goals`, `monthly_budgets`, `users` 네 테이블을 `TRUNCATE`하고 `users`, `monthly_budgets`, `expenses`만 채운다(`category_goals`는 비워 둔다).
 
 ```sh
 # 1. 측정용 PostgreSQL. 데이터는 tmpfs에만 두고 지울 때는 항상 -v를 붙인다.

@@ -12,6 +12,10 @@ public interface MonthlyBudgetRepository extends Repository<MonthlyBudget, Long>
     @Query("SELECT * FROM monthly_budgets WHERE user_id = :userId AND budget_month = :budgetMonth")
     Optional<MonthlyBudget> find(long userId, LocalDate budgetMonth);
 
+    // 목표 저장을 같은 사용자·월에서 하나씩 처리하려고 잠근다.
+    @Query("SELECT * FROM monthly_budgets WHERE user_id = :userId AND budget_month = :budgetMonth FOR UPDATE")
+    Optional<MonthlyBudget> findForUpdate(long userId, LocalDate budgetMonth);
+
     // 동시 PUT도 한 문장 안에서 생성 또는 교체되므로 409·재시도가 필요 없다.
     @Query("""
             INSERT INTO monthly_budgets (user_id, budget_month, amount, created_at, updated_at)

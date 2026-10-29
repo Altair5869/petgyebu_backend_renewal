@@ -30,17 +30,18 @@ class FlywayBaselineSchemaTests {
 
     @BeforeEach
     void clean() {
-        jdbc.execute("TRUNCATE expenses, monthly_budgets, users RESTART IDENTITY");
+        jdbc.execute("TRUNCATE expenses, category_goals, monthly_budgets, users RESTART IDENTITY");
     }
 
     @Test
-    void createsOnlyTheThreeMvpTables() {
+    void createsOnlyTheDesignedTables() {
         List<String> tables = jdbc.queryForList("""
                 SELECT table_name FROM information_schema.tables
                 WHERE table_schema = 'public' AND table_name <> 'flyway_schema_history'
                 """, String.class);
 
-        assertThat(tables).containsExactlyInAnyOrder("users", "expenses", "monthly_budgets");
+        assertThat(tables).containsExactlyInAnyOrder("users", "expenses", "monthly_budgets",
+                "category_goals");
     }
 
     @Test
@@ -74,6 +75,15 @@ class FlywayBaselineSchemaTests {
                 "amount", "bigint NO",
                 "created_at", "timestamp with time zone NO",
                 "updated_at", "timestamp with time zone NO"));
+
+        assertThat(columns("category_goals")).containsExactlyInAnyOrderEntriesOf(Map.of(
+                "id", "bigint NO",
+                "user_id", "bigint NO",
+                "goal_month", "date NO",
+                "category", "character varying(20) NO",
+                "amount", "bigint NO",
+                "created_at", "timestamp with time zone NO",
+                "updated_at", "timestamp with time zone NO"));
     }
 
     @Test
@@ -94,6 +104,16 @@ class FlywayBaselineSchemaTests {
         insertBudget(insertUser("KAKAO", "u2"), "2026-10-01");
 
         assertThatThrownBy(() -> insertBudget(userId, "2026-10-01"))
+                .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void rejectsSecondGoalForSameUserMonthCategory() {
+        long userId = insertUser("KAKAO", "u1");
+        insertGoal(userId, "CAFE");
+        insertGoal(userId, "FOOD");
+
+        assertThatThrownBy(() -> insertGoal(userId, "CAFE"))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -120,10 +140,14 @@ class FlywayBaselineSchemaTests {
         insertExpense(withExpense);
         long withBudget = insertUser("KAKAO", "u2");
         insertBudget(withBudget, "2026-10-01");
+        long withGoal = insertUser("KAKAO", "u3");
+        insertGoal(withGoal, "CAFE");
 
         assertThatThrownBy(() -> jdbc.update("DELETE FROM users WHERE id = ?", withExpense))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThatThrownBy(() -> jdbc.update("DELETE FROM users WHERE id = ?", withBudget))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("DELETE FROM users WHERE id = ?", withGoal))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
@@ -132,7 +156,7 @@ class FlywayBaselineSchemaTests {
         Long checks = jdbc.queryForObject("""
                 SELECT count(*) FROM pg_constraint c
                 JOIN pg_class t ON t.oid = c.conrelid
-                WHERE c.contype = 'c' AND t.relname IN ('users', 'expenses', 'monthly_budgets')
+                WHERE c.contype = 'c' AND t.relname IN ('users', 'expenses', 'monthly_budgets', 'category_goals')
                 """, Long.class);
 
         assertThat(checks).isZero();
@@ -181,5 +205,12 @@ class FlywayBaselineSchemaTests {
                 INSERT INTO monthly_budgets (user_id, budget_month, amount)
                 VALUES (?, CAST(? AS DATE), 300000)
                 """, userId, firstDay);
+    }
+
+    private void insertGoal(long userId, String category) {
+        jdbc.update("""
+                INSERT INTO category_goals (user_id, goal_month, category, amount)
+                VALUES (?, DATE '2026-10-01', ?, 50000)
+                """, userId, category);
     }
 }

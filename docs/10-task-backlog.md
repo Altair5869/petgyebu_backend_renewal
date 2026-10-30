@@ -99,18 +99,22 @@
 | ID | 작업과 완료 기준 | 의존 | 상태 |
 |---|---|---|---|
 | `M-012` | **과거 월 예산 설정·변경.** `PUT /api/v1/months/{month}/budget`가 GET과 같이 2000-01부터 서울 기준 현재 월까지 받는다. 잘못 넣은 과거 예산을 고치고 예산이 없던 과거 월에 새로 넣을 수 있다. 미래 월·형식 오류는 400 `month`, 금액 규칙·단일 upsert·200 응답은 그대로이고 삭제는 없다. 과거 예산은 그 달 통계에만 반영되며 홈·펫·인사이트는 현재 월 예산만 쓴다. 기능 `F-M04`. | `M-007` | [x] |
-| `APP-007` | **과거 월 예산 입력·수정 화면.** 월별 상세에서 과거 월 예산을 넣거나 고칠 수 있다. 저장 뒤 그 달 통계의 예산·사용률·잔액이 갱신되고 과거 월에는 펫을 보이지 않는다. | `M-012`, `APP-005` | [ ] |
+| `APP-007` | **과거 월 예산 입력·수정 화면.** 월별 상세에서 과거 월 예산을 넣거나 고칠 수 있다. 저장 뒤 그 달 통계의 예산·사용률·잔액이 갱신되고 과거 월에는 펫을 보이지 않는다. | `M-012`, `APP-005` | [[x] |
 
 > `M-012` 검증 기록 (2026-10-28): `BudgetService.put`에서 현재 월 검사를 없애 PUT이 GET과 같은 `Months.parsePastOrCurrent`(2000-01~서울 현재 월)만 따른다. 월 검사가 본문보다 먼저인 순서와 단일 upsert는 그대로다. `BudgetApiTests`로 과거 월(2026-09, 2000-01) 생성과 같은 행 id를 유지한 교체, 과거 예산이 그 달 통계의 예산·사용률·잔액에 반영됨, 과거 예산만 있으면 현재 월 예산은 없고 홈 409 `BUDGET_REQUIRED`·인사이트 `NO_BUDGET`, 미래 월 PUT 400(`month`)과 행 미생성, 서울 월 경계(11/01 00:30에 10월은 과거 월로 정정 가능)를 검증했다. API 경로·스키마는 바꾸지 않았다. `./gradlew cleanTest test --no-daemon` 통과(테스트 226개, 실패 0개).
+
+> `APP-007` 검증 기록 (2026-10-29, iOS): 근거는 앱 PR #29다. 월별 통계 요약 카드 아래 예산 줄("고치기"/"미설정 · 넣기")에서 예산 화면으로 가서 그 달 예산을 넣거나 고친다. 과거 월 예산을 바꿔도 홈·펫은 바뀌지 않는다. 백엔드 develop `76f6a4d`의 `bootTestRun`에서 과거 월 예산 PUT과 미래 월 400이 계약과 일치했고 백엔드 계약 변경은 없다. iPhone 18 Pro / iOS 27.0 시뮬레이터에서 Maestro `goals/past-month-budget`(이전 달 → 예산 넣기 → 사용률·남은 예산 확인)와 기존 `stats/monthly-stats`·`stats/move-month`·`expenses/edit-and-delete`가 통과했고, 앱 `lint`·`typecheck`·Jest(476개)가 통과했다. 앱 PR #30에서 홈 하단 링크 배치를 바꾼 뒤 `goals/past-month-budget`를 다시 돌려 통과했다. Android와 실기기는 확인하지 않았다.
 
 ## 후속 — 카테고리 목표
 
 | ID | 작업과 완료 기준 | 의존 | 상태 |
 |---|---|---|---|
 | `M-013` | **카테고리 목표 API와 지출 목록 카테고리 필터.** `V3`로 `category_goals`(`UNIQUE(user_id, goal_month, category)`)를 추가한다. `GET /api/v1/months/{month}/category-goals`는 `month, budgetAmount, goalTotalAmount, goalsExceedBudget, goals`를, `PUT …/{category}`는 `{amount}`로 생성·변경해 200 `{month, category, amount}`를, `DELETE …/{category}`는 204(없어도 204)를 반환한다. 목표 합이 월 예산을 넘으면 409 `CATEGORY_GOALS_EXCEED_BUDGET`, 예산이 없으면 409 `BUDGET_REQUIRED`다. PUT은 예산 행을 `FOR UPDATE`로 잠근 뒤 검사한다. 예산을 목표 합보다 낮추는 것은 허용하고 GET이 `goalsExceedBudget: true`를 낸다. `GET /api/v1/months/{month}/expenses?category=`는 한 카테고리만 같은 정렬·커서로 돌려준다(검증 순서 month → limit → category → cursor). 탈퇴는 지출 → 예산 → 카테고리 목표 → 사용자 순이다. 기능 `F-M08`, `F-M03`. | `M-007`, `M-005` | [x] |
-| `APP-008` | **카테고리 목표 화면.** 목표 설정·변경·삭제, 사용 현황(쓴 금액·남은 금액·사용률), 목표 합이 예산을 넘는 상태의 초과 안내, 카테고리별 지출 목록을 보여준다. | `M-013`, `APP-005` | [ ] |
+| `APP-008` | **카테고리 목표 화면.** 목표 설정·변경·삭제, 사용 현황(쓴 금액·남은 금액·사용률), 목표 합이 예산을 넘는 상태의 초과 안내, 카테고리별 지출 목록을 보여준다. | `M-013`, `APP-005` | [[x] |
 
 > `M-013` 검증 기록 (2026-10-28): `goal` 패키지로 구현했다. `CategoryGoalRepository`는 행 조회·upsert·삭제와 탈퇴용 `deleteAllOfUser`만 맡고, 합계·잔액·사용률·`goalsExceedBudget`은 DB 없이 `CategoryGoals`가 계산한다. 목표 PUT은 `MonthlyBudgetRepository`의 `FOR UPDATE` 잠금 조회로 예산 행을 먼저 잠근 뒤 한도를 검사한다. 탈퇴는 이 잠금과 반대 순서로 잠그지 않도록 지출 → 월 예산 → 카테고리 목표 → 사용자 순으로 지운다. 지출 목록은 `findFirstPageInCategory`·`findPageAfterInCategory`를 더했고 기존 인덱스를 그대로 쓴다. 테스트: `CategoryGoalsTests` 6개(선언 순서, 초과 시 음수 잔액·100% 초과, 사용률 버림, 합계·교체, `goalsExceedBudget` 경계), `CategoryGoalApiTests` 14개(응답 필드, 생성 후 같은 행 교체, 합 = 예산 허용·1원 초과 409와 행 불변, 예산 없음 409, 예산을 낮춘 뒤 `goalsExceedBudget` true와 PUT 409, 멱등 DELETE, 과거 월 허용·미래 월 400, 검증 순서, 사용자별 격리, 미인증 401, 서로 다른 카테고리 동시 PUT의 한도 유지, `withdrawalDuringGoalPutDoesNotDeadlock`), `ExpenseApiTests`의 카테고리 필터 4개(해당 카테고리만 정렬 순서, 커서 페이징, 다른 사용자 제외, 잘못된 값 400), `FlywayBaselineSchemaTests`(네 테이블, 목표 UNIQUE)와 `UserApiTests`(탈퇴가 목표 행도 지우고 롤백됨)를 갱신했다. 처음에 탈퇴를 예산 → 목표 순서가 아니라 목표를 예산보다 먼저 지우게 했더니 목표 PUT과 교착 상태가 날 수 있어 순서를 바꿨고 위 테스트로 막았다. `./gradlew cleanTest test --no-daemon` 통과(테스트 251개, 실패 0개).
+
+> `APP-008` 검증 기록 (2026-10-29, iOS): 근거는 앱 PR #29다. 월별 통계의 "카테고리 목표" 카드가 카테고리마다 남은 금액 또는 초과 금액, 진행 막대, 쓴 금액/목표를 보여주고, 목표 합이 예산보다 크면 초과 안내를 띄운다. 목표 입력 화면은 7개 카테고리를 한 번에 받고 빈칸은 삭제로 보내며, 서버가 카테고리별로 합을 검사하므로 저장 직전에 다시 읽어 지우기 → 줄이기 → 늘리기 순서로 보낸다. 카테고리 지출 화면은 `?category=` 목록을 쓴다. 백엔드 develop `76f6a4d`의 `bootTestRun`에서 예산 없는 달의 GET과 PUT 409 `BUDGET_REQUIRED`, 합 초과 409 `CATEGORY_GOALS_EXCEED_BUDGET`과 합 = 예산 200, 예산을 낮춘 뒤 `goalsExceedBudget: true`와 줄이는 PUT 409, DELETE 204, `category` 필터와 소문자 카테고리 400이 계약과 일치했고 백엔드 계약 변경은 없다. iPhone 18 Pro / iOS 27.0 시뮬레이터에서 Maestro `goals/category-goals`(목표 입력 → 지출 기록 → 카페 초과 → 카페 지출만 표시)가 통과했고(앱 PR #30 이후 재실행 포함), 앱 `lint`·`typecheck`·Jest(476개)가 통과했다. Android와 실기기는 확인하지 않았다.
 
 ## 출시 준비와 후속 실험
 

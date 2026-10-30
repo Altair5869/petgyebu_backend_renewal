@@ -123,7 +123,7 @@
 | `M-014` | **날짜별 합계 API와 지출 목록 날짜 필터.** `GET /api/v1/months/{month}/daily-totals`는 `month, days`(`date, spentAmount, expenseCount`)를 지출이 있는 날만 `date` 오름차순으로 반환한다(없으면 `days: []`, `month` 오류 400, 미인증 401). `GET /api/v1/months/{month}/expenses?date=YYYY-MM-DD`는 그날 지출만 같은 정렬·`limit`·커서로 반환하고 `{month}` 밖의 날짜·형식 오류·없는 날짜는 400 `INVALID_REQUEST`(`date`)이며 `category`와 함께 쓸 수 있다. 새 테이블·SQL은 없다. 기능 `F-M09`. | `M-005`, `M-008`, `M-013` | [x] |
 | `APP-009` | **달력 보기.** 월별 통계 화면에 "달력 / 목록" 탭(기본 "목록")을 두고, 달력 칸에 날짜별 합계를 줄여 보여주며, 날짜를 누르면 그날 합계와 지출 목록(`?date=`)을 보여준다. | `M-014`, `APP-005` | [ ] |
 
-> `M-014` 검증 기록 (2026-10-30): `expense/DailySpending`이 `findDayAmounts` 행으로 날짜별 합계·건수를 DB 없이 계산하고 `StatsService.dailyTotals`가 이를 쓴다. 지출 목록의 `date`는 조회 범위 `[from, to)`를 `[date, date + 1일)`로 좁혀 기존 쿼리를 그대로 쓴다. 검증 순서는 `month` → `limit` → `category` → `date` → `cursor`다. 테스트: `DailySpendingTests` 4개, `stats/DailyTotalsApiTests` 9개, `ExpenseApiTests`의 날짜 필터 7개(그날 행만 정렬 순서, 커서 페이징, `category`와 함께, 다른 사용자 제외, 현재 월 미래 날짜 빈 목록, 잘못된 값 400, 검증 순서). `./gradlew cleanTest test --no-daemon` 통과(테스트 271개, 실패 0개).
+> `M-014` 검증 기록 (2026-10-30): `expense/DailySpending`이 `findDayAmounts` 행으로 날짜별 합계·건수를 DB 없이 계산하고 `StatsService.dailyTotals`가 이를 쓴다. 지출 목록의 `date`는 조회 범위 `[from, to)`를 `[date, date + 1일)`로 좁혀 기존 쿼리를 그대로 쓴다. 검증 순서는 `month` → `limit` → `category` → `date` → `cursor`다. 테스트: `DailySpendingTests` 4개, `stats/DailyTotalsApiTests` 9개, `ExpenseApiTests`의 날짜 필터 8개(그날 행만 정렬 순서, 커서 페이징, `category`와 함께, 다른 사용자 제외, 현재 월 미래 날짜 빈 목록, 월 말일이 다음 달을 포함하지 않음, 잘못된 값 400, 검증 순서). `./gradlew cleanTest test --no-daemon` 통과(테스트 272개, 실패 0개).
 
 ## 출시 준비와 후속 실험
 

@@ -10,6 +10,7 @@ import org.altair.petgyebu_backend_renewal.budget.BudgetUsage;
 import org.altair.petgyebu_backend_renewal.budget.MonthlyBudgetRepository;
 import org.altair.petgyebu_backend_renewal.common.Months;
 import org.altair.petgyebu_backend_renewal.expense.Category;
+import org.altair.petgyebu_backend_renewal.expense.DailySpending;
 import org.altair.petgyebu_backend_renewal.expense.ExpenseRepository;
 import org.altair.petgyebu_backend_renewal.expense.MonthlySpending;
 import org.altair.petgyebu_backend_renewal.expense.MonthlySpending.CategoryTotal;
@@ -24,6 +25,9 @@ public class StatsService {
     }
 
     public record CategoryStat(Category category, long spentAmount, long expenseCount, BigDecimal sharePercent) {
+    }
+
+    public record DailyTotals(YearMonth month, List<DailySpending.DayTotal> days) {
     }
 
     // 금액 내림차순, 동률은 Category 선언 순서(FOOD, CAFE, TRANSPORT, SHOPPING, HEALTH, LIVING, OTHER).
@@ -56,6 +60,14 @@ public class StatsService {
                 .toList();
         BudgetUsage usage = budgets.find(userId, range.from()).map(b -> new BudgetUsage(b.amount(), spent)).orElse(null);
         return new Stats(month, spent, spending.count(), usage, categories);
+    }
+
+    // 지출이 있는 날만 날짜 오름차순으로 돌려준다. 달력 합 = 월 stats 합이다.
+    @Transactional(readOnly = true)
+    public DailyTotals dailyTotals(long userId, String monthText) {
+        YearMonth month = Months.parsePastOrCurrent(monthText, clock);
+        Months.Range range = Months.range(month);
+        return new DailyTotals(month, DailySpending.of(expenses.findDayAmounts(userId, range.from(), range.to())));
     }
 
     // 카테고리가 있으면 spent > 0이다. 소수 첫째 자리 반올림(HALF_UP), 합계 100 보정은 하지 않는다.

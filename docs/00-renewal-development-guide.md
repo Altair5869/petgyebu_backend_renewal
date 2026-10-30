@@ -36,6 +36,7 @@
 ### 상세 통계와 지출 내역
 
 - 상세 통계 순서는 `월 선택 → 지출 총액·건수 → 카테고리별 금액·비중 → 전체 지출 내역`이다. 최대 7개 카테고리는 일반 세로 스크롤을 사용한다.
+- 월 선택 아래의 "달력 / 목록" 탭에서 "달력"은 날짜별 지출 합계를 달력으로 보여주고 날짜를 누르면 그날 지출 목록을 보여준다. 기본은 "목록"이며 "목록"은 위 순서 그대로다. 달력은 항상 전체 카테고리 기준이다.
 - 카테고리는 지출이 있는 항목만 금액 내림차순으로 보여준다. 동률이면 고정 코드 순서 `FOOD, CAFE, TRANSPORT, SHOPPING, HEALTH, LIVING, OTHER`를 사용한다.
 - 지출 목록은 무한 스크롤이다. 날짜 내림차순, 같은 날짜에서는 ID 내림차순으로 정렬한다. 초기·추가 로딩, 빈 목록, 재시도, 마지막 페이지를 구분한다.
 - 메모가 있으면 목록 제목은 메모, 보조 정보는 날짜·카테고리다. 메모가 없으면 카테고리 이름을 제목으로, 날짜를 보조 정보로 보여준다. 금액은 항상 표시한다. 긴 제목은 목록에서 한 줄로 줄이고 수정 화면에서 전체를 볼 수 있다.
@@ -108,7 +109,7 @@
 
 ## 8. API 경로와 응답 계약
 
-접두사는 `/api/v1`, `{month}`는 `YYYY-MM`이다. **19개 동작, 14개 고유 경로**다. 로그인 요청의 credential은 카카오 SDK 액세스 토큰·구글 ID 토큰이다(스토어 앱 기준).
+접두사는 `/api/v1`, `{month}`는 `YYYY-MM`이다. **20개 동작, 15개 고유 경로**다. 로그인 요청의 credential은 카카오 SDK 액세스 토큰·구글 ID 토큰이다(스토어 앱 기준).
 
 | # | 메서드 | 경로 | 확정된 용도 |
 |---:|---|---|---|
@@ -122,7 +123,7 @@
 | 8 | GET | `/api/v1/months/{month}/budget` | 해당 월 예산 조회, 미설정 시 `amount: null`. `{month}`는 지출 목록과 같이 2000-01부터 서울 기준 현재 월까지의 `YYYY-MM`만 허용하고 그 외는 400 `INVALID_REQUEST`(`month`) |
 | 9 | PUT | `/api/v1/months/{month}/budget` | 2000-01부터 서울 기준 현재 월까지 예산 생성·변경. 미래 월과 형식 오류는 400 `INVALID_REQUEST`(`month`) |
 | 10 | POST | `/api/v1/expenses` | 지출 생성. 선택 헤더 `Idempotency-Key`(UUID)가 있으면 같은 사용자·키·내용의 재시도는 새로 만들지 않고 200과 기존 지출을 돌려준다 |
-| 11 | GET | `/api/v1/months/{month}/expenses` | 지출 커서 목록. 선택 `category`(7개 값)로 한 카테고리만 거를 수 있다. 같은 정렬·`limit`·커서 규칙이며 잘못된 값은 400 `INVALID_REQUEST`(`category`) |
+| 11 | GET | `/api/v1/months/{month}/expenses` | 지출 커서 목록. 선택 `category`(7개 값)로 한 카테고리만 거를 수 있다. 같은 정렬·`limit`·커서 규칙이며 잘못된 값은 400 `INVALID_REQUEST`(`category`). 선택 `date`(`YYYY-MM-DD`)로 그날 지출만 거를 수 있으며 `{month}` 안의 날짜여야 하고 아니면 400 `INVALID_REQUEST`(`date`). 현재 월의 미래 날짜는 200과 빈 목록이다. `category`와 함께 쓸 수 있다 |
 | 12 | GET | `/api/v1/expenses/{expenseId}` | 지출 단건 조회·수정 초기값 |
 | 13 | PATCH | `/api/v1/expenses/{expenseId}` | 지출 일부 수정, 날짜의 월 이동 가능 |
 | 14 | DELETE | `/api/v1/expenses/{expenseId}` | 지출 삭제 |
@@ -131,6 +132,7 @@
 | 17 | GET | `/api/v1/months/{month}/category-goals` | 그 달 카테고리 목표와 사용 현황. 목표·예산이 없어도 200 |
 | 18 | PUT | `/api/v1/months/{month}/category-goals/{category}` | 카테고리 목표 생성·변경. 그 달 예산이 필요하고 목표 합이 예산을 넘으면 409 |
 | 19 | DELETE | `/api/v1/months/{month}/category-goals/{category}` | 카테고리 목표 삭제, 목표가 없어도 204 |
+| 20 | GET | `/api/v1/months/{month}/daily-totals` | 그 달 날짜별 지출 합계(달력용). 지출이 있는 날만 담고 지출이 없어도 200 |
 
 ### 공통 응답 필드
 
@@ -138,6 +140,7 @@
 - 예산 GET/PUT은 `{month, amount}`를 반환한다. PUT 요청은 `{amount}`다. 미설정 과거 월은 `amount: null`이다.
 - 홈은 `month, petType, petState, budgetAmount, spentAmount, usagePercent, budgetBalanceAmount`를 반환한다. 카테고리·지출 목록은 포함하지 않는다.
 - 통계는 `month, budgetAmount, spentAmount, expenseCount, usagePercent, budgetBalanceAmount, categories`를 반환한다. 각 카테고리는 `category, spentAmount, expenseCount, sharePercent`를 가진다. **펫 필드는 통계에 없다.** 예산이 없는 월은 과거·현재 모두 200으로 `budgetAmount, usagePercent, budgetBalanceAmount`만 `null`이다.
+- 날짜별 합계는 `month, days`를 반환한다. `days`는 지출이 있는 날만 `date` 오름차순으로 담고 각 항목은 `date`(`YYYY-MM-DD`, 서울 기준), `spentAmount`, `expenseCount`를 가진다. 지출이 없는 달은 `days: []`다. `spentAmount`·`expenseCount`의 합은 같은 달 통계의 값과 같다. `{month}` 오류는 통계와 같은 400 `INVALID_REQUEST`(`month`), 인증 실패 401 외 오류 응답은 없다.
 - 목표 GET은 `month, budgetAmount, goalTotalAmount, goalsExceedBudget, goals`를 반환한다. `goals`는 목표가 있는 카테고리만 `Category` 선언 순서로 담고 각 항목은 `category, goalAmount, spentAmount, remainingAmount, usagePercent`를 가진다. `spentAmount`는 통계의 카테고리 `spentAmount`와 같은 값, `remainingAmount = goalAmount - spentAmount`(음수면 초과), `usagePercent`는 홈·통계와 같이 소수 첫째 자리에서 버리며 100을 넘을 수 있다. 예산이 없으면 `budgetAmount: null`, `goalsExceedBudget: false`다. 목표 PUT 요청은 `{amount}`(1원 이상 1억 원 이하 정수)이고 200 `{month, category, amount}`를 반환한다. DELETE는 204다.
 - 인사이트는 `today, weekly, forecast`를 반환한다. `weekly`는 `thisWeek{from,to}`, `lastWeek{from,to}`(월요일 시작 달력 주, 이번 주 월요일~오늘과 7일 전 같은 요일 범위, 양 끝 포함)와 `categories`(`category, thisWeekAmount, lastWeekAmount, changeAmount = 이번 주 - 지난주`)를 가진다. `categories`는 두 범위 중 한쪽에라도 지출이 있는 카테고리만 `changeAmount` 내림차순·동률 `Category` 선언 순서이며 지출이 없으면 빈 배열이다. `forecast`는 `status, dailyAverageAmount, exhaustionDate`를 가진다. 인증 실패 401 외 오류 응답은 없다.
 - 로그인과 토큰 갱신 응답은 `accessToken, refreshToken, accessExpiresInSeconds`를 반환한다. 액세스 만료 초는 `900`이다. 갱신 요청은 현재 `refreshToken`을 보낸다. 로그아웃도 현재 리프레시 토큰으로 요청한다.
@@ -167,7 +170,7 @@
 - `POST /expenses`의 `Idempotency-Key` 헤더는 선택이며 없으면 매번 새 지출을 만든다. 값은 표준 36자 UUID(대소문자 무관)이며 형식이 틀리면 `400 INVALID_REQUEST`(`Idempotency-Key`)다. 본문 검증이 키 조회보다 먼저다. 같은 사용자·같은 키에 정규화 후 `amount`·`expenseDate`·`category`·`memo`가 같으면 `200`과 기존 지출, 본문이 다르면 `409 IDEMPOTENCY_KEY_REUSED`다. 지출을 삭제하면 그 키로 다시 `201`로 만들 수 있다.
 - 인증 관련 오류 코드: 입력 오류 `400 INVALID_REQUEST`(`fields` 포함), 공급자 확인 실패 `401 SOCIAL_LOGIN_FAILED`, 토큰 없음·무효·만료·종료된 로그인 `401 UNAUTHORIZED`(사유 구분 없음), 공급자 장애·응답 이상·설정 누락 `503 SOCIAL_LOGIN_UNAVAILABLE`.
 - 목표 규칙: 목표는 달마다 따로 정하며 다음 달로 이어지지 않는다. `{month}`는 예산과 같이 2000-01부터 서울 기준 현재 월까지만 받는다. `{category}`는 7개 값(대소문자는 지출 생성과 같다)이다. PUT 검사 순서는 `month` → `category` → 본문 → 예산 존재 → 합계 한도이며, 그 달 예산이 없으면 409 `BUDGET_REQUIRED`, `(다른 카테고리 목표 합) + amount > 예산`이면 409 `CATEGORY_GOALS_EXCEED_BUDGET`(합이 예산과 같으면 허용, 행은 바뀌지 않음)이다. 이 규칙은 하나뿐이어서 예산이 이미 목표 합보다 낮은 상태에서 목표를 줄이는 PUT도 결과 합이 예산을 넘으면 막고, 목표 삭제나 예산 증액으로 푼다. 예산을 목표 합보다 낮추는 것은 허용하며 이때 목표 GET이 `goalsExceedBudget: true`를 내려 앱이 알린다. 목표 PUT은 한 트랜잭션에서 그 사용자·월의 예산 행을 `SELECT … FOR UPDATE`로 잠근 뒤 합계를 검사하고 upsert하므로 동시 PUT이 한도를 넘지 않는다. DELETE는 예산이 없어도 400·409 없이 204이며 다른 사용자의 행은 건드리지 않는다. 펫 상태는 카테고리 목표와 무관하게 전체 예산 기준이다.
-- 지출 목록의 입력 검증 순서는 `month` → `limit` → `category` → `cursor`다.
+- 지출 목록의 입력 검증 순서는 `month` → `limit` → `category` → `date` → `cursor`다. `date`가 있으면 조회 범위를 그날로 좁히며 정렬·`limit`·커서 규칙은 그대로다.
 - 성공 응답은 지출 생성 201(같은 `Idempotency-Key` 재시도는 200), 조회·수정 200, 지출 삭제·로그아웃·탈퇴 204다. 예산 PUT과 목표 PUT은 생성·변경 모두 200이며 목표 삭제는 204다.
 
 ## 9. 캐시 실험

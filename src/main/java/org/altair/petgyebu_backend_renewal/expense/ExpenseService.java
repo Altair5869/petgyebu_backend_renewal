@@ -105,14 +105,17 @@ public class ExpenseService {
     }
 
     @Transactional(readOnly = true)
-    public Page list(long userId, String monthText, int limit, String cursor, String categoryText) {
+    public Page list(long userId, String monthText, int limit, String cursor, String categoryText,
+            String dateText) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);
         if (limit < 1 || limit > MAX_LIMIT) {
             throw ApiException.invalidRequest("limit", "1 이상 " + MAX_LIMIT + " 이하만 허용합니다.");
         }
         Category category = categoryText == null ? null : Category.parse(categoryText);
+        LocalDate date = dateText == null ? null : parseDate(dateText, month);
         Cursor c = cursor == null ? null : Cursor.decode(cursor, userId, month);
-        Months.Range range = Months.range(month);
+        // date가 있으면 그 하루만 조회한다.
+        Months.Range range = date == null ? Months.range(month) : new Months.Range(date, date.plusDays(1));
         // 한 건 더 읽어 다음 페이지가 실제로 있는지 확인한다.
         List<Expense> rows;
         if (category == null) {
@@ -131,6 +134,21 @@ public class ExpenseService {
         List<Expense> items = rows.subList(0, limit);
         Expense last = items.getLast();
         return new Page(items, new Cursor(userId, month, last.expenseDate(), last.id()).encode());
+    }
+
+    // YYYY-MM-DD 형식의 해당 월 날짜만 허용한다.
+    private static LocalDate parseDate(String text, YearMonth month) {
+        try {
+            if (text.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                LocalDate date = LocalDate.parse(text);
+                if (YearMonth.from(date).equals(month)) {
+                    return date;
+                }
+            }
+        } catch (DateTimeParseException ignored) {
+            // 아래에서 동일한 오류로 처리한다.
+        }
+        throw ApiException.invalidRequest("date", "YYYY-MM-DD 형식의 그 달 날짜여야 합니다.");
     }
 
     // 발급한 사용자·월에서만 유효한 불투명 커서. base64url("userId:YYYY-MM:YYYY-MM-DD:id")

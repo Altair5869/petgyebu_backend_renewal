@@ -657,6 +657,103 @@ class ExpenseApiTests {
         expectInvalid(list(a, "2026-10", "&limit=0&category=cafe"), "limit");
     }
 
+    @Test
+    void dateFilterReturnsOnlyThatDayInListOrder() throws Exception {
+        String a = accessToken("a");
+        seed(1, "2026-10-10"); // 1
+        seed(1, "2026-10-09"); // 2
+        seed(1, "2026-10-10"); // 3
+        seed(1, "2026-10-11"); // 4
+
+        list(a, "2026-10", "&date=2026-10-10")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(3, 1)))
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
+    }
+
+    @Test
+    void dateFilterPagesWithCursor() throws Exception {
+        String a = accessToken("a");
+        seed(1, "2026-10-10"); // 1
+        seed(1, "2026-10-10"); // 2
+        seed(1, "2026-10-10"); // 3
+
+        String page1 = list(a, "2026-10", "&date=2026-10-10&limit=2")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(3, 2)))
+                .andReturn().getResponse().getContentAsString();
+        String cursor = JsonPath.read(page1, "$.nextCursor");
+
+        list(a, "2026-10", "&date=2026-10-10&limit=2&cursor=" + cursor)
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(1)))
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
+    }
+
+    @Test
+    void dateFilterCombinesWithCategory() throws Exception {
+        String a = accessToken("a");
+        seed(1, "2026-10-10", "CAFE"); // 1
+        seed(1, "2026-10-10", "FOOD"); // 2
+        seed(1, "2026-10-11", "CAFE"); // 3
+
+        list(a, "2026-10", "&date=2026-10-10&category=CAFE")
+                .andExpect(jsonPath("$.items[*].id", contains(1)));
+    }
+
+    @Test
+    void dateFilterExcludesOtherUsers() throws Exception {
+        String a = accessToken("a");
+        accessToken("b");
+        seed(1, "2026-10-10"); // 1
+        seed(2, "2026-10-10"); // 2
+
+        list(a, "2026-10", "&date=2026-10-10").andExpect(jsonPath("$.items[*].id", contains(1)));
+    }
+
+    @Test
+    void futureDateInCurrentMonthReturnsEmptyList() throws Exception {
+        String a = accessToken("a");
+        seed(1, "2026-10-13");
+
+        list(a, "2026-10", "&date=2026-10-31")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items").isEmpty());
+    }
+
+    @Test
+    void dateFilterOnLastDayOfMonthExcludesNextMonth() throws Exception {
+        String a = accessToken("a");
+        seed(1, "2026-09-30"); // 1
+        seed(1, "2026-09-30"); // 2
+        seed(1, "2026-10-01"); // 3
+
+        list(a, "2026-09", "&date=2026-09-30")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(2, 1)))
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
+    }
+
+    @Test
+    void invalidDateFilterIsRejected() throws Exception {
+        String a = accessToken("a");
+
+        for (String date : List.of("", "2026-10-1", "%202026-10-01", "2026/10/01", "2026-09-30")) {
+            expectInvalid(list(a, "2026-10", "&date=" + date), "date");
+        }
+        expectInvalid(list(a, "2026-02", "&date=2026-02-30"), "date");
+    }
+
+    @Test
+    void dateFilterValidationOrder() throws Exception {
+        String a = accessToken("a");
+
+        expectInvalid(list(a, "2026-10", "&category=cafe&date=bad"), "category");
+        expectInvalid(list(a, "2026-10", "&limit=0&date=bad"), "limit");
+        expectInvalid(list(a, "2026-10", "&date=bad&cursor=bad"), "date");
+        expectInvalid(list(a, "2026-11", "&date=bad"), "month");
+    }
+
     private void seed(long userId, String date) {
         seed(userId, date, "FOOD");
     }

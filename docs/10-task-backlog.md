@@ -99,7 +99,7 @@
 | ID | 작업과 완료 기준 | 의존 | 상태 |
 |---|---|---|---|
 | `M-012` | **과거 월 예산 설정·변경.** `PUT /api/v1/months/{month}/budget`가 GET과 같이 2000-01부터 서울 기준 현재 월까지 받는다. 잘못 넣은 과거 예산을 고치고 예산이 없던 과거 월에 새로 넣을 수 있다. 미래 월·형식 오류는 400 `month`, 금액 규칙·단일 upsert·200 응답은 그대로이고 삭제는 없다. 과거 예산은 그 달 통계에만 반영되며 홈·펫·인사이트는 현재 월 예산만 쓴다. 기능 `F-M04`. | `M-007` | [x] |
-| `APP-007` | **과거 월 예산 입력·수정 화면.** 월별 상세에서 과거 월 예산을 넣거나 고칠 수 있다. 저장 뒤 그 달 통계의 예산·사용률·잔액이 갱신되고 과거 월에는 펫을 보이지 않는다. | `M-012`, `APP-005` | [[x] |
+| `APP-007` | **과거 월 예산 입력·수정 화면.** 월별 상세에서 과거 월 예산을 넣거나 고칠 수 있다. 저장 뒤 그 달 통계의 예산·사용률·잔액이 갱신되고 과거 월에는 펫을 보이지 않는다. | `M-012`, `APP-005` | [x] |
 
 > `M-012` 검증 기록 (2026-10-28): `BudgetService.put`에서 현재 월 검사를 없애 PUT이 GET과 같은 `Months.parsePastOrCurrent`(2000-01~서울 현재 월)만 따른다. 월 검사가 본문보다 먼저인 순서와 단일 upsert는 그대로다. `BudgetApiTests`로 과거 월(2026-09, 2000-01) 생성과 같은 행 id를 유지한 교체, 과거 예산이 그 달 통계의 예산·사용률·잔액에 반영됨, 과거 예산만 있으면 현재 월 예산은 없고 홈 409 `BUDGET_REQUIRED`·인사이트 `NO_BUDGET`, 미래 월 PUT 400(`month`)과 행 미생성, 서울 월 경계(11/01 00:30에 10월은 과거 월로 정정 가능)를 검증했다. API 경로·스키마는 바꾸지 않았다. `./gradlew cleanTest test --no-daemon` 통과(테스트 226개, 실패 0개).
 
@@ -110,7 +110,7 @@
 | ID | 작업과 완료 기준 | 의존 | 상태 |
 |---|---|---|---|
 | `M-013` | **카테고리 목표 API와 지출 목록 카테고리 필터.** `V3`로 `category_goals`(`UNIQUE(user_id, goal_month, category)`)를 추가한다. `GET /api/v1/months/{month}/category-goals`는 `month, budgetAmount, goalTotalAmount, goalsExceedBudget, goals`를, `PUT …/{category}`는 `{amount}`로 생성·변경해 200 `{month, category, amount}`를, `DELETE …/{category}`는 204(없어도 204)를 반환한다. 목표 합이 월 예산을 넘으면 409 `CATEGORY_GOALS_EXCEED_BUDGET`, 예산이 없으면 409 `BUDGET_REQUIRED`다. PUT은 예산 행을 `FOR UPDATE`로 잠근 뒤 검사한다. 예산을 목표 합보다 낮추는 것은 허용하고 GET이 `goalsExceedBudget: true`를 낸다. `GET /api/v1/months/{month}/expenses?category=`는 한 카테고리만 같은 정렬·커서로 돌려준다(검증 순서 month → limit → category → cursor). 탈퇴는 지출 → 예산 → 카테고리 목표 → 사용자 순이다. 기능 `F-M08`, `F-M03`. | `M-007`, `M-005` | [x] |
-| `APP-008` | **카테고리 목표 화면.** 목표 설정·변경·삭제, 사용 현황(쓴 금액·남은 금액·사용률), 목표 합이 예산을 넘는 상태의 초과 안내, 카테고리별 지출 목록을 보여준다. | `M-013`, `APP-005` | [[x] |
+| `APP-008` | **카테고리 목표 화면.** 목표 설정·변경·삭제, 사용 현황(쓴 금액·남은 금액·사용률), 목표 합이 예산을 넘는 상태의 초과 안내, 카테고리별 지출 목록을 보여준다. | `M-013`, `APP-005` | [x] |
 
 > `M-013` 검증 기록 (2026-10-28): `goal` 패키지로 구현했다. `CategoryGoalRepository`는 행 조회·upsert·삭제와 탈퇴용 `deleteAllOfUser`만 맡고, 합계·잔액·사용률·`goalsExceedBudget`은 DB 없이 `CategoryGoals`가 계산한다. 목표 PUT은 `MonthlyBudgetRepository`의 `FOR UPDATE` 잠금 조회로 예산 행을 먼저 잠근 뒤 한도를 검사한다. 탈퇴는 이 잠금과 반대 순서로 잠그지 않도록 지출 → 월 예산 → 카테고리 목표 → 사용자 순으로 지운다. 지출 목록은 `findFirstPageInCategory`·`findPageAfterInCategory`를 더했고 기존 인덱스를 그대로 쓴다. 테스트: `CategoryGoalsTests` 6개(선언 순서, 초과 시 음수 잔액·100% 초과, 사용률 버림, 합계·교체, `goalsExceedBudget` 경계), `CategoryGoalApiTests` 14개(응답 필드, 생성 후 같은 행 교체, 합 = 예산 허용·1원 초과 409와 행 불변, 예산 없음 409, 예산을 낮춘 뒤 `goalsExceedBudget` true와 PUT 409, 멱등 DELETE, 과거 월 허용·미래 월 400, 검증 순서, 사용자별 격리, 미인증 401, 서로 다른 카테고리 동시 PUT의 한도 유지, `withdrawalDuringGoalPutDoesNotDeadlock`), `ExpenseApiTests`의 카테고리 필터 4개(해당 카테고리만 정렬 순서, 커서 페이징, 다른 사용자 제외, 잘못된 값 400), `FlywayBaselineSchemaTests`(네 테이블, 목표 UNIQUE)와 `UserApiTests`(탈퇴가 목표 행도 지우고 롤백됨)를 갱신했다. 처음에 탈퇴를 예산 → 목표 순서가 아니라 목표를 예산보다 먼저 지우게 했더니 목표 PUT과 교착 상태가 날 수 있어 순서를 바꿨고 위 테스트로 막았다. `./gradlew cleanTest test --no-daemon` 통과(테스트 251개, 실패 0개).
 
@@ -121,9 +121,11 @@
 | ID | 작업과 완료 기준 | 의존 | 상태 |
 |---|---|---|---|
 | `M-014` | **날짜별 합계 API와 지출 목록 날짜 필터.** `GET /api/v1/months/{month}/daily-totals`는 `month, days`(`date, spentAmount, expenseCount`)를 지출이 있는 날만 `date` 오름차순으로 반환한다(없으면 `days: []`, `month` 오류 400, 미인증 401). `GET /api/v1/months/{month}/expenses?date=YYYY-MM-DD`는 그날 지출만 같은 정렬·`limit`·커서로 반환하고 `{month}` 밖의 날짜·형식 오류·없는 날짜는 400 `INVALID_REQUEST`(`date`)이며 `category`와 함께 쓸 수 있다. 새 테이블·SQL은 없다. 기능 `F-M09`. | `M-005`, `M-008`, `M-013` | [x] |
-| `APP-009` | **달력 보기.** 월별 통계 화면에 "달력 / 목록" 탭(기본 "목록")을 두고, 달력 칸에 날짜별 합계를 줄여 보여주며, 날짜를 누르면 그날 합계와 지출 목록(`?date=`)을 보여준다. | `M-014`, `APP-005` | [ ] |
+| `APP-009` | **달력 보기.** 월별 통계 화면에 "달력 / 목록" 탭(기본 "목록")을 두고, 달력 칸에 날짜별 합계를 줄여 보여주며, 날짜를 누르면 그날 합계와 지출 목록(`?date=`)을 보여준다. | `M-014`, `APP-005` | [x] |
 
 > `M-014` 검증 기록 (2026-10-30): `expense/DailySpending`이 `findDayAmounts` 행으로 날짜별 합계·건수를 DB 없이 계산하고 `StatsService.dailyTotals`가 이를 쓴다. 지출 목록의 `date`는 조회 범위 `[from, to)`를 `[date, date + 1일)`로 좁혀 기존 쿼리를 그대로 쓴다. 검증 순서는 `month` → `limit` → `category` → `date` → `cursor`다. 테스트: `DailySpendingTests` 4개, `stats/DailyTotalsApiTests` 9개, `ExpenseApiTests`의 날짜 필터 8개(그날 행만 정렬 순서, 커서 페이징, `category`와 함께, 다른 사용자 제외, 현재 월 미래 날짜 빈 목록, 월 말일이 다음 달을 포함하지 않음, 잘못된 값 400, 검증 순서). `./gradlew cleanTest test --no-daemon` 통과(테스트 272개, 실패 0개).
+
+> `APP-009` 검증 기록 (2026-10-31, iOS·Android): 근거는 앱 PR #32(앱 develop `b7c4334`)다. 월별 통계의 월 이동 아래 "달력 / 목록" 탭은 처음 열 때와 다시 열 때 "목록"이고, "달력"은 일요일 시작 달력에 지출 있는 날만 줄인 금액(버림, `999`·`1천`·`1.2만`·`1억`)을 쓰고 오늘을 표시한다. 첫 선택 날짜는 현재 월이면 서울 기준 오늘, 과거 월이면 1일이며 월을 바꿀 때마다 다시 고른다. 날짜를 누르면 "10월 28일 · 23,000원"과 `?date=` 목록(`category` 없음)을 한 FlatList에서 보여주고 끝에서 다음 페이지를 받는다. 지출이 없으면 "이날은 지출이 없어요". 지출을 수정하고 돌아오면 날짜별 합계와 그날 목록을 다시 받고 선택 날짜와 탭을 유지한다. 그날 목록만 실패하면 달력은 남기고 목록 자리에 다시 시도를 둔다. 백엔드 develop `b62a395`의 `bootTestRun`에서 `daily-totals`와 `?date=` 응답이 계약과 일치했고 백엔드 계약 변경은 없다. Jest(금액 표시 경계값 999·1,000·9,999·10,000·12,800·99,999,999·100,000,000, 1일 요일·말일·윤년 칸 배치, 첫 선택 날짜, 수정 후 복귀 시 선택 유지 등) 508개 통과, lint·typecheck 통과. iPhone 18 Pro / iOS 27.0 시뮬레이터에서 Maestro `stats/calendar-view`(통계 → 달력 → 날짜 선택 → 목록 → 지출 수정 → 합계 13,000원 갱신·오늘 선택 유지 → 지난달 1일 → 이번 달 오늘)를 10/30과 10/31에 통과했고 전체 회귀 28개 흐름도 통과했다. Pixel 8 / API 36 에뮬레이터에서도 같은 흐름이 통과했다. 실기기는 확인하지 않았다.
 
 ## 출시 준비와 후속 실험
 

@@ -722,6 +722,19 @@ class ExpenseApiTests {
     }
 
     @Test
+    void dateFilterOnLastDayOfMonthExcludesNextMonth() throws Exception {
+        String a = accessToken("a");
+        seed(1, "2026-09-30"); // 1
+        seed(1, "2026-09-30"); // 2
+        seed(1, "2026-10-01"); // 3
+
+        list(a, "2026-09", "&date=2026-09-30")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items[*].id", contains(2, 1)))
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
+    }
+
+    @Test
     void invalidDateFilterIsRejected() throws Exception {
         String a = accessToken("a");
 

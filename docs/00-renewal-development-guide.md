@@ -123,7 +123,7 @@
 | 8 | GET | `/api/v1/months/{month}/budget` | 해당 월 예산 조회, 미설정 시 `amount: null`. `{month}`는 지출 목록과 같이 2000-01부터 서울 기준 현재 월까지의 `YYYY-MM`만 허용하고 그 외는 400 `INVALID_REQUEST`(`month`) |
 | 9 | PUT | `/api/v1/months/{month}/budget` | 2000-01부터 서울 기준 현재 월까지 예산 생성·변경. 미래 월과 형식 오류는 400 `INVALID_REQUEST`(`month`) |
 | 10 | POST | `/api/v1/expenses` | 지출 생성. 선택 헤더 `Idempotency-Key`(UUID)가 있으면 같은 사용자·키·내용의 재시도는 새로 만들지 않고 200과 기존 지출을 돌려준다 |
-| 11 | GET | `/api/v1/months/{month}/expenses` | 지출 커서 목록. 선택 `category`(7개 값)로 한 카테고리만 거를 수 있다. 같은 정렬·`limit`·커서 규칙이며 잘못된 값은 400 `INVALID_REQUEST`(`category`). 선택 `date`(`YYYY-MM-DD`)로 그날 지출만 거를 수 있으며 `{month}` 안의 날짜여야 하고 아니면 400 `INVALID_REQUEST`(`date`). `category`와 함께 쓸 수 있다 |
+| 11 | GET | `/api/v1/months/{month}/expenses` | 지출 커서 목록. 선택 `category`(7개 값)로 한 카테고리만 거를 수 있다. 같은 정렬·`limit`·커서 규칙이며 잘못된 값은 400 `INVALID_REQUEST`(`category`). 선택 `date`(`YYYY-MM-DD`)로 그날 지출만 거를 수 있으며 `{month}` 안의 날짜여야 하고 아니면 400 `INVALID_REQUEST`(`date`). 현재 월의 미래 날짜는 200과 빈 목록이다. `category`와 함께 쓸 수 있다 |
 | 12 | GET | `/api/v1/expenses/{expenseId}` | 지출 단건 조회·수정 초기값 |
 | 13 | PATCH | `/api/v1/expenses/{expenseId}` | 지출 일부 수정, 날짜의 월 이동 가능 |
 | 14 | DELETE | `/api/v1/expenses/{expenseId}` | 지출 삭제 |

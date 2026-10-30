@@ -3,7 +3,7 @@
 - 갱신: 2026-10-11
 - 기준: [리뉴얼 개발 기준](00-renewal-development-guide.md), [기능명세](02-requirements-features.md), [스프린트 계획](06-sprint-plan.md)
 - 상태: 구현 범위·의존 관계를 보여주는 계획. 현재 코드의 구현 완료 표시가 아니다.
-- API 접두사: `/api/v1`; `{month}`는 `YYYY-MM`이다. **19개 동작, 14개 고유 경로, 4개 논리 테이블**이다.
+- API 접두사: `/api/v1`; `{month}`는 `YYYY-MM`이다. **20개 동작, 15개 고유 경로, 4개 논리 테이블**이다.
 
 ## 1. 기능과 구현 책임
 
@@ -16,6 +16,7 @@
 | `F-M06` 현재 홈 | 2 | 현재 월의 지출 합계·예산 잔액·사용률·펫 상태 계산, 미설정 온보딩 오류 | `users`, `expenses`, `monthly_budgets` |
 | `F-M05` 월별 통계 | 3 | 현재·과거 월 총액·건수·카테고리 금액·건수·비중 계산. 과거 월 펫 응답 없음 | `expenses`, `monthly_budgets` |
 | `F-M08` 카테고리 목표 | 후속 | 월별 카테고리 목표 설정·변경·삭제, 목표 합 ≤ 예산(예산 행 잠금 후 검사), 사용 현황 조회, 월 지출 목록의 카테고리 필터 | `category_goals`, `expenses`, `monthly_budgets` |
+| `F-M09` 달력 보기 | 후속 | 월별 날짜별 지출 합계(도메인 객체가 `findDayAmounts` 행으로 계산), 월 지출 목록의 `date` 필터(조회 범위를 그날로 좁힘) | `expenses` |
 | `F-M07` 소비 인사이트 | 후속 | 이번 주·지난주 같은 요일 범위 카테고리 비교, 현재 월 예산 소진 예측. 펫·예산 없이도 200 | `expenses`, `monthly_budgets` |
 
 API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층은 같은 사용자·월 범위의 DB 원본 값으로 홈과 통계를 계산한다. 특정 클래스명·패키지나 토큰·커서의 내부 인코딩은 이 문서에서 고정하지 않는다. 스키마와 인덱스는 `09-db-design.md`를 따르며, 계약이 충돌하면 `00`의 데이터 계약을 우선한다.
@@ -43,6 +44,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 | 17 | `F-M08` | GET | `/api/v1/months/{month}/category-goals` | `month`, `budgetAmount`, `goalTotalAmount`, `goalsExceedBudget`, `goals`(`category`, `goalAmount`, `spentAmount`, `remainingAmount`, `usagePercent`). 목표·예산 없어도 200 | `category_goals`, `expenses`, `monthly_budgets` |
 | 18 | `F-M08` | PUT | `/api/v1/months/{month}/category-goals/{category}` | `{amount}` → `{month, category, amount}`, 항상 200. 예산 없음 409 `BUDGET_REQUIRED`, 합 초과 409 `CATEGORY_GOALS_EXCEED_BUDGET` | `category_goals`, `monthly_budgets` |
 | 19 | `F-M08` | DELETE | `/api/v1/months/{month}/category-goals/{category}` | 본인 목표 삭제 → 204, 없어도 204 | `category_goals` |
+| 20 | `F-M09` | GET | `/api/v1/months/{month}/daily-totals` | `month`, `days`(`date`, `spentAmount`, `expenseCount`), 지출 있는 날만 `date` 오름차순, 없으면 `[]`. 합은 통계와 같음 | `expenses` |
 
 `PUT /users/me/pet`, 지출 조회·수정, 예산 조회·PUT, 목표 조회·PUT, 홈·통계 조회 등 본문이 있는 성공 응답은 200이다. 지출 생성은 201, 지출 삭제·목표 삭제·로그아웃·탈퇴는 204다. 로그인·갱신의 응답 필드와 오류 계약은 `00`을 따른다.
 
@@ -83,6 +85,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 | 3 | 1 | 1 | `F-M05` | 집계 쿼리와 날짜 범위 검증 |
 | 후속 | 1 | 1 | `F-M07` | 기존 인덱스로 최대 약 6주 범위 행 조회, 마이그레이션 없음 |
 | 후속 | 3 | 2 | `F-M08` | `V3`로 `category_goals`와 `UNIQUE(user_id, goal_month, category)` 추가 |
-| **합계** | **19** | **14** | `F-M01`~`F-M08` | **4개 논리 테이블** |
+| 후속 | 1 | 1 | `F-M09` | 기존 `findDayAmounts`와 목록 쿼리를 재사용, 마이그레이션 없음. `date`는 기존 경로의 파라미터라 고유 경로는 1개만 늘어난다 |
+| **합계** | **20** | **15** | `F-M01`~`F-M09` | **4개 논리 테이블** |
 
 스프린트 수량은 구현 계획이며 코드에 해당 API가 이미 존재한다는 뜻이 아니다. 앱 화면의 정보 순서·빈 상태·과거 월 표시 규칙은 `03-user-flow.md`를 따른다.

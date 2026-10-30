@@ -3,7 +3,7 @@
 - 갱신: 2026-10-10
 - 기준 문서: [00-renewal-development-guide.md](00-renewal-development-guide.md), [01-prd.md](01-prd.md)
 - 상태: 기능별 MVP 요구사항. 수치·응답·API·데이터 계약이 충돌하면 `00-renewal-development-guide.md`를 우선한다.
-- 기능 ID: `F-M01`~`F-M08`. 이전 제품의 ID와 검토 기록은 현재 구현 기준으로 사용하지 않는다.
+- 기능 ID: `F-M01`~`F-M09`. 이전 제품의 ID와 검토 기록은 현재 구현 기준으로 사용하지 않는다.
 
 ## 공통 계약
 
@@ -107,6 +107,15 @@
 | 한도 | 한 달의 목표 합은 그 달 예산을 넘을 수 없다(같음은 허용). 예산이 없으면 409 `BUDGET_REQUIRED`, 합이 넘으면 409 `CATEGORY_GOALS_EXCEED_BUDGET`이다. 예산을 목표 합보다 낮추는 것은 허용하며 이때 `goalsExceedBudget: true`로 앱이 알린다. |
 | 삭제 | `DELETE`는 목표가 없어도 204다. |
 | 범위 | 백엔드 API만 포함한다. 앱 화면은 `APP-008`이다. 펫 상태는 전체 예산 기준 그대로이며 초과 알림·푸시·이월은 없다. |
+
+## F-M09 달력 보기
+
+| 항목 | 요구사항 |
+|---|---|
+| 목표 | 월별 통계 화면의 "달력 / 목록" 탭에서 날짜별로 얼마 썼는지 보고, 날짜를 누르면 그날 지출 목록과 합계를 본다. 기본 탭은 "목록"이다. |
+| 날짜별 합계 | `GET /api/v1/months/{month}/daily-totals`는 `month`와 `days`(`date`, `spentAmount`, `expenseCount`)를 준다. 지출이 있는 날만 `date` 오름차순이고 지출이 없는 달은 `days: []`이다. `days`의 합은 같은 달 통계의 `spentAmount`·`expenseCount`와 같다. 합계는 DB 집계 없이 서비스의 도메인 객체가 계산한다. |
+| 날짜 필터 | `GET /api/v1/months/{month}/expenses?date=YYYY-MM-DD`는 그날 지출만 같은 정렬·`limit`·커서로 준다. `{month}` 밖의 날짜·형식 오류·없는 날짜는 400 `INVALID_REQUEST`(`date`)이고 현재 월의 미래 날짜는 빈 목록이다. `category`와 함께 쓸 수 있다. |
+| 범위 | 새 테이블·저장 집계·캐시는 없다. 달력은 항상 전체 카테고리 기준이며 앱 화면은 `APP-009`이다. |
 
 ## 인수 기준
 

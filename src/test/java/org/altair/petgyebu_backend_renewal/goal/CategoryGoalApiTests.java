@@ -325,6 +325,8 @@ class CategoryGoalApiTests {
     private void awaitBlockedOnLock() {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadline) {
+            // 트랜잭션 안에서는 첫 조회 때의 세션 목록이 유지돼 그 뒤에 연결된 탈퇴 세션이 보이지 않는다.
+            jdbc.execute("SELECT pg_stat_clear_snapshot()");
             Integer waiting = jdbc.queryForObject("""
                     SELECT count(*) FROM pg_stat_activity
                     WHERE wait_event_type = 'Lock' AND datname = current_database()

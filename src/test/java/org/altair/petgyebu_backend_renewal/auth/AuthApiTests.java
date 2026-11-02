@@ -1,6 +1,6 @@
 package org.altair.petgyebu_backend_renewal.auth;
 
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -8,6 +8,7 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -208,9 +209,13 @@ class AuthApiTests {
         String access = accessToken(login("kakao", "ok:k1"));
         doThrow(new DataAccessResourceFailureException("db down")).when(users).hasActiveSession(anyLong(), any());
 
-        // 세션 확인 중 DB 오류는 인증 필터 밖으로 전파되어 컨트롤러에 도달하지 않는다(fail closed).
-        // 실제 서버에서는 Spring Boot 기본 /error 처리로 500이 된다.
-        assertThatThrownBy(() -> me(access)).isInstanceOf(DataAccessResourceFailureException.class);
+        // 세션 확인 중 DB 오류는 컨트롤러에 도달하지 않고(fail closed) 공통 500 본문이 되며, 내부 오류 내용은 숨긴다.
+        me(access)
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
+                .andExpect(jsonPath("$.message").value("일시적인 오류가 발생했습니다."))
+                .andExpect(jsonPath("$.userId").doesNotExist())
+                .andExpect(content().string(not(containsString("db down"))));
         verify(users).hasActiveSession(anyLong(), any());
     }
 

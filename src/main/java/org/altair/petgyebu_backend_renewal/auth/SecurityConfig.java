@@ -13,6 +13,7 @@ import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.DefaultBearerTokenResolver;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
@@ -57,7 +58,8 @@ public class SecurityConfig {
                         .jwt(jwt -> jwt.decoder(jwtDecoder).jwtAuthenticationConverter(sessionCheckingJwtConverter))
                         .bearerTokenResolver(bearerTokenResolver())
                         .authenticationEntryPoint(UNAUTHORIZED_JSON))
-                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(UNAUTHORIZED_JSON));
+                .exceptionHandling(exceptions -> exceptions.authenticationEntryPoint(UNAUTHORIZED_JSON))
+                .addFilterBefore(new UnhandledFilterErrorJson(), BearerTokenAuthenticationFilter.class);
         return http.build();
     }
 }

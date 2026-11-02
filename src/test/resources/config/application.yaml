@@ -2,3 +2,8 @@
 petgyebu:
   jwt:
     secret: test-only-jwt-secret-not-for-production-use
+spring:
+  flyway:
+    # Docker Desktop은 Testcontainers가 준비 완료로 본 직후에도 호스트 포트 전달이 잠깐 늦어
+    # 첫 연결이 EOFException으로 끊길 수 있다. 재시도 3회(1·2·4초 간격, 최대 약 7초).
+    connect-retries: 3

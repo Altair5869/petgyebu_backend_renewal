@@ -1,0 +1,1 @@
+SELECT category, amount FROM expenses WHERE user_id = :uid AND expense_date >= date_trunc('month', now() AT TIME ZONE 'Asia/Seoul')::date AND expense_date < (date_trunc('month', now() AT TIME ZONE 'Asia/Seoul') + interval '1 month')::date;

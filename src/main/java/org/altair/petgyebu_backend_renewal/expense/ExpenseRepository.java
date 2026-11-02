@@ -35,6 +35,13 @@ public interface ExpenseRepository extends Repository<Expense, Long> {
     @Query("DELETE FROM expenses WHERE user_id = :userId")
     int deleteAllOfUser(long userId);
 
+    // 사용자 [from, to)의 지출 건수. 월 지출 건수 상한 확인용(ix_expenses_user_date_id 사용).
+    @Query("""
+            SELECT count(*) FROM expenses
+            WHERE user_id = :userId AND expense_date >= :from AND expense_date < :to
+            """)
+    long countInRange(long userId, LocalDate from, LocalDate to);
+
     // 사용자·월 [from, to)의 카테고리·금액 행. 홈과 월 통계가 Service에서 집계한다.
     @Query("""
             SELECT category, amount FROM expenses

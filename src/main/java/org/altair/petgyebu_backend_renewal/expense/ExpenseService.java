@@ -26,6 +26,8 @@ public class ExpenseService {
     static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     static final int DEFAULT_LIMIT = 20;
     static final int MAX_LIMIT = 50;
+    // 사용자별 expenseDate 월의 지출 건수 상한. 월 화면들이 그 달 행을 모두 메모리로 읽으므로 한 사용자의 비용을 묶는다.
+    static final int MONTHLY_EXPENSE_LIMIT = 1000;
 
     public record Page(List<Expense> items, String nextCursor) {
     }
@@ -53,6 +55,7 @@ public class ExpenseService {
                 return replay(existing.get(), request);
             }
         }
+        requireMonthHasRoom(userId, request.expenseDate());
         OffsetDateTime now = OffsetDateTime.now(clock);
         try {
             return new CreateResult(expenses.save(new Expense(null, userId, request.amount(), request.expenseDate(),
@@ -81,6 +84,16 @@ public class ExpenseService {
         return new CreateResult(existing, false);
     }
 
+    // 잠금 없이 건수만 확인한다. create는 트랜잭션 밖이라 count와 insert 사이에 커넥션을 잡지 않으므로,
+    // 경계에서 동시에 처리 중인 생성 요청 수(인스턴스당 동시 요청 수 × 인스턴스 수)만큼 상한을 넘을 수 있다.
+    // 한 번 넘으면 이후 요청은 모두 거부되므로 초과는 그 순간의 동시 요청 수로 끝난다.
+    private void requireMonthHasRoom(long userId, LocalDate expenseDate) {
+        Months.Range range = Months.range(YearMonth.from(expenseDate));
+        if (expenses.countInRange(userId, range.from(), range.to()) >= MONTHLY_EXPENSE_LIMIT) {
+            throw ApiException.monthlyExpenseLimitExceeded();
+        }
+    }
+
     @Transactional(readOnly = true)
     public Expense get(long userId, long id) {
         return expenses.findByIdAndUserId(id, userId).orElseThrow(ApiException::expenseNotFound);
@@ -91,6 +104,10 @@ public class ExpenseService {
         RequestBodies.requireObject(body);
         Expense current = get(userId, id);
         Expense updated = ExpensePatch.from(body, seoulToday()).applyTo(current, OffsetDateTime.now(clock));
+        // 같은 달 안의 수정은 건수가 늘지 않으므로 상한을 보지 않는다.
+        if (!YearMonth.from(updated.expenseDate()).equals(YearMonth.from(current.expenseDate()))) {
+            requireMonthHasRoom(userId, updated.expenseDate());
+        }
         if (expenses.update(id, userId, updated.amount(), updated.expenseDate(), updated.category().name(),
                 updated.memo(), updated.updatedAt()) == 0) {
             throw ApiException.expenseNotFound();

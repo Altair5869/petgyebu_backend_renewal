@@ -34,10 +34,10 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 | 7 | `F-M06` | GET | `/api/v1/home` | 현재 월의 `month`, `petType`, `petState`, `budgetAmount`, `spentAmount`, `usagePercent`, `budgetBalanceAmount` | `users`, `expenses`, `monthly_budgets` |
 | 8 | `F-M04` | GET | `/api/v1/months/{month}/budget` | 해당 월 `{month, amount}`; 미설정이면 `amount: null`. 2000-01~현재 월 밖·형식 오류는 400 `month` | `monthly_budgets` |
 | 9 | `F-M04` | PUT | `/api/v1/months/{month}/budget` | 2000-01~현재 월을 `{amount}`로 생성·변경 → `{month, amount}`, 항상 200. 미래 월은 400 `month` | `monthly_budgets` |
-| 10 | `F-M03` | POST | `/api/v1/expenses` | `amount`, `expenseDate`, 선택 `category`·`memo` → 지출 응답, 201 | `expenses` |
+| 10 | `F-M03` | POST | `/api/v1/expenses` | `amount`, `expenseDate`, 선택 `category`·`memo` → 지출 응답, 201. 그 월 1,000건이면 409 `MONTHLY_EXPENSE_LIMIT_EXCEEDED` | `expenses` |
 | 11 | `F-M03` | GET | `/api/v1/months/{month}/expenses` | `limit`, `cursor`, 선택 `category`·`date` → `items`, `nextCursor` | `expenses` |
 | 12 | `F-M03` | GET | `/api/v1/expenses/{expenseId}` | 본인 지출 단건·수정 초기값 → 지출 응답 | `expenses` |
-| 13 | `F-M03` | PATCH | `/api/v1/expenses/{expenseId}` | 전달한 필드만 수정, 날짜의 월 이동 가능 → 지출 응답 | `expenses` |
+| 13 | `F-M03` | PATCH | `/api/v1/expenses/{expenseId}` | 전달한 필드만 수정, 날짜의 월 이동 가능 → 지출 응답. 옮길 월이 1,000건이면 409 `MONTHLY_EXPENSE_LIMIT_EXCEEDED` | `expenses` |
 | 14 | `F-M03` | DELETE | `/api/v1/expenses/{expenseId}` | 본인 지출 삭제 → 204 | `expenses` |
 | 15 | `F-M05` | GET | `/api/v1/months/{month}/stats` | 월별 숫자 통계와 카테고리 금액·건수·비중, 펫 필드 없음 | `expenses`, `monthly_budgets` |
 | 16 | `F-M07` | GET | `/api/v1/insights` | `today`, `weekly`(`thisWeek`, `lastWeek`, `categories`), `forecast`(`status`, `dailyAverageAmount`, `exhaustionDate`). 펫·예산 없어도 200 | `expenses`, `monthly_budgets` |
@@ -73,7 +73,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 
 ### 공통 실패 응답
 
-공통 실패 응답은 `code`, `message`를 가진다. 입력 오류에는 해당 필드 정보를 더한다. 잘못된 입력·커서는 400, 미인증·무효 토큰은 401, 없거나 다른 사용자의 지출 ID는 구분 없이 404 `EXPENSE_NOT_FOUND`다. 홈의 온보딩 미완료는 위의 409 코드다. 없는 경로(인증 후)는 404 `NOT_FOUND`, 지원하지 않는 메서드는 405 `METHOD_NOT_ALLOWED`(`Allow` 헤더 포함), 지원하지 않는 Content-Type은 415 `UNSUPPORTED_MEDIA_TYPE`, 처리되지 않은 서버 오류는 500 `INTERNAL_ERROR`이며 내부 오류 내용은 응답에 넣지 않는다. 사용자 데이터 조회와 변경은 인증된 사용자 범위로 제한한다. 인증 오류 코드는 `INVALID_REQUEST`(400), `SOCIAL_LOGIN_FAILED`(401), `UNAUTHORIZED`(401), `SOCIAL_LOGIN_UNAVAILABLE`(503)이다.
+공통 실패 응답은 `code`, `message`를 가진다. 입력 오류에는 해당 필드 정보를 더한다. 잘못된 입력·커서는 400, 미인증·무효 토큰은 401, 없거나 다른 사용자의 지출 ID는 구분 없이 404 `EXPENSE_NOT_FOUND`다. 홈의 온보딩 미완료는 위의 409 코드다. 사용자별 지출 날짜의 월마다 지출은 최대 1,000건이며 넘으면 409 `MONTHLY_EXPENSE_LIMIT_EXCEEDED`다(같은 `Idempotency-Key` 재시도는 허용, 같은 월 안의 수정은 검사하지 않음). 없는 경로(인증 후)는 404 `NOT_FOUND`, 지원하지 않는 메서드는 405 `METHOD_NOT_ALLOWED`(`Allow` 헤더 포함), 지원하지 않는 Content-Type은 415 `UNSUPPORTED_MEDIA_TYPE`, 처리되지 않은 서버 오류는 500 `INTERNAL_ERROR`이며 내부 오류 내용은 응답에 넣지 않는다. 사용자 데이터 조회와 변경은 인증된 사용자 범위로 제한한다. 인증 오류 코드는 `INVALID_REQUEST`(400), `SOCIAL_LOGIN_FAILED`(401), `UNAUTHORIZED`(401), `SOCIAL_LOGIN_UNAVAILABLE`(503)이다.
 
 ## 4. 스프린트별 API 수와 데이터
 

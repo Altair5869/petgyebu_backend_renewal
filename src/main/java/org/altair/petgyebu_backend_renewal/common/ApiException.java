@@ -67,6 +67,11 @@ public class ApiException extends RuntimeException {
                 "같은 Idempotency-Key로 다른 내용의 지출이 이미 저장되었습니다.", null);
     }
 
+    public static ApiException monthlyExpenseLimitExceeded() {
+        return new ApiException(HttpStatus.CONFLICT, "MONTHLY_EXPENSE_LIMIT_EXCEEDED",
+                "한 달에 기록할 수 있는 지출은 최대 1,000건입니다.", null);
+    }
+
     public HttpStatus status() {
         return status;
     }

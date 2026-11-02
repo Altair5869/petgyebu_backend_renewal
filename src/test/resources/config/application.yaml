@@ -2,3 +2,9 @@
 petgyebu:
   jwt:
     secret: test-only-jwt-secret-not-for-production-use
+spring:
+  flyway:
+    # Testcontainers가 준비 완료로 본 직후 첫 연결이 EOFException으로 끊겨 테스트 클래스 전체가 실패하는
+    # 간헐 실패가 있었다(Docker Desktop 호스트 포트 전달 지연으로 추정). 재시도 3회(1·2·4초 간격, 대기 합계 약 7초).
+    # 테스트 클래스패스를 쓰는 bootTestRun(로컬 개발·perf 측정 앱)에도 적용된다.
+    connect-retries: 3

@@ -84,8 +84,9 @@ public class ExpenseService {
         return new CreateResult(existing, false);
     }
 
-    // 잠금 없이 건수만 확인한다. 경계에서 동시 요청은 상한을 조금 넘길 수 있지만
-    // 동시에 처리 중인 요청 수(인스턴스당 커넥션 풀 3, 최대 2개 인스턴스)로 묶인다.
+    // 잠금 없이 건수만 확인한다. create는 트랜잭션 밖이라 count와 insert 사이에 커넥션을 잡지 않으므로,
+    // 경계에서 동시에 처리 중인 생성 요청 수(인스턴스당 동시 요청 수 × 인스턴스 수)만큼 상한을 넘을 수 있다.
+    // 한 번 넘으면 이후 요청은 모두 거부되므로 초과는 그 순간의 동시 요청 수로 끝난다.
     private void requireMonthHasRoom(long userId, LocalDate expenseDate) {
         Months.Range range = Months.range(YearMonth.from(expenseDate));
         if (expenses.countInRange(userId, range.from(), range.to()) >= MONTHLY_EXPENSE_LIMIT) {

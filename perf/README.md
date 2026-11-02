@@ -34,6 +34,7 @@ docker exec -i petgyebu-perf-pg psql -U perf -d perf -v users=1000 -v months=12 
 docker exec -i petgyebu-perf-pg psql -U perf -d perf -v uid=100 -v month_offset=0 -f - < perf/explain.sql
 
 # 5. 부하. create와 mixed는 지출을 추가하므로 마지막에 돌리거나 다시 시드한 뒤 돌린다.
+#    사용자별 월 지출 상한(1,000건)에 닿으면 생성이 409로 바뀌어 거절 경로를 재게 되므로, 길게 돌릴 때는 USERS를 늘린다.
 k6 run -e TIER=normal -e ENDPOINT=home --summary-export out.json perf/k6/baseline.js
 #    summary의 setup_data에는 액세스 토큰이 있다. 저장소에 넣기 전에 지운다.
 jq 'del(.setup_data)' out.json > perf/results/<날짜>/k6/normal_home.json

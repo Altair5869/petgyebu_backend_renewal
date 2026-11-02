@@ -95,7 +95,7 @@ gcloud iam service-accounts add-iam-policy-binding "$DEPLOY_SA" --role=roles/iam
 ## 6. 배포와 확인
 
 - `main`에서 `v*` 태그를 push하거나 Actions의 Deploy를 `main`에서 수동 실행한다. 워크플로는 테스트 → 이미지 빌드·push → Cloud Run 배포 순서다.
-- 설정: 1 vCPU·1GiB, startup CPU boost, 최소 인스턴스 0·최대 2, 인스턴스당 Hikari 풀 3. 새 리비전으로 넘어가는 동안에는 이전 리비전 인스턴스도 떠 있어 연결이 최대 12개까지 늘 수 있다. Supabase Free의 연결 한도와 `pg_dump` 같은 운영 연결을 합쳐 넘지 않게 한다. 앱이 시작할 때 Flyway가 스키마를 적용한다.
+- 설정: 1 vCPU·1GiB, startup CPU boost, 최소 인스턴스 0·최대 2, 인스턴스당 Hikari 풀 3, 연결 대기 시간 5초(`application.yaml`의 `connection-timeout`; 풀이 모두 사용 중이면 5초 뒤 공통 `500 INTERNAL_ERROR`). 새 리비전으로 넘어가는 동안에는 이전 리비전 인스턴스도 떠 있어 연결이 최대 12개까지 늘 수 있다. Supabase Free의 연결 한도와 `pg_dump` 같은 운영 연결을 합쳐 넘지 않게 한다. 앱이 시작할 때 Flyway가 스키마를 적용한다.
 - 배포 뒤 서비스 URL(`https://petgyebu-backend-....run.app`)로 확인한다.
   - 토큰 없이 `GET /api/v1/home` → 401
   - 엉터리 credential로 `POST /api/v1/auth/login/kakao`·`google` → 401 `SOCIAL_LOGIN_FAILED`(503이면 공급자 ID 설정 누락)

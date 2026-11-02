@@ -43,8 +43,11 @@
 - 없어진 것은 (위 추정대로) `COMMIT` 왕복 1개(약 2ms)다. p50 감소(2.1–3.5ms)는 그 크기와 비슷하거나 조금 크다. 큰 쪽은 처리량이 늘며 대기가 준 효과로 보이나 원인은 분리하지 않았다.
 - 이번 세션의 절대값은 캐시 실험 세션(같은 2ms 조건 home p95 27.89–42.00)보다 낮다. 실행 시간대에 따라 이 장비의 값이 크게 흔들리므로 비교는 이번 세션의 전후 쌍만 쓴다.
 
+## 후속: 필터 단계 오류의 공통 500 본문
+
+세션 확인 중 DB 오류가 나면 요청은 거부됐지만(fail closed) 응답은 500 + Spring Boot 기본 본문이었다(이번 변경 전부터). 사용자 결정으로 보안 필터 체인에 `UnhandledFilterErrorJson`을 두어 계약(`docs/00` 공통 오류 응답)대로 `500 {"code":"INTERNAL_ERROR","message":"일시적인 오류가 발생했습니다."}`를 반환하게 했다. 실제 서버(`bootTestRun`)에서 로그인 후 DB 프록시를 멈추고 `GET /api/v1/users/me`를 호출해 이 본문과 `application/json`, 서버 로그 `Unhandled exception: GET /api/v1/users/me`를 확인했다.
+
 ## 확인하지 않은 것
 
 - stats와 다른 엔드포인트의 부하 측정(문장 수 감소는 stats_current에서도 확인).
 - 실제 Cloud Run·Supabase 환경.
-- 세션 확인 중 DB 오류 시 응답 본문: 실제 서버는 500이지만 공통 에러 형식(`{code, message}`)이 아니라 Spring Boot 기본 형식이다. 이번 변경 전부터 그랬고, 요청은 통과하지 않는다(fail closed). 형식 통일은 별도 결정이다.

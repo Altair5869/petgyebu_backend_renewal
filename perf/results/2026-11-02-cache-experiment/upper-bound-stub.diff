@@ -1,0 +1,32 @@
+diff --git a/src/main/java/org/altair/petgyebu_backend_renewal/home/HomeService.java b/src/main/java/org/altair/petgyebu_backend_renewal/home/HomeService.java
+index a377809..d62c9c8 100644
+--- a/src/main/java/org/altair/petgyebu_backend_renewal/home/HomeService.java
++++ b/src/main/java/org/altair/petgyebu_backend_renewal/home/HomeService.java
+@@ -11,6 +11,7 @@ import org.altair.petgyebu_backend_renewal.expense.ExpenseRepository;
+ import org.altair.petgyebu_backend_renewal.expense.MonthlySpending;
+ import org.altair.petgyebu_backend_renewal.user.User;
+ import org.altair.petgyebu_backend_renewal.user.UserRepository;
++import org.springframework.beans.factory.annotation.Value;
+ import org.springframework.stereotype.Service;
+ import org.springframework.transaction.annotation.Transactional;
+ 
+@@ -24,6 +25,9 @@ public class HomeService {
+     private final MonthlyBudgetRepository budgets;
+     private final ExpenseRepository expenses;
+     private final Clock clock;
++    // 측정 전용 스텁: 캐시 적중 비용 0을 흉내 낸다. 머지하지 않는다.
++    @Value("${petgyebu.perf.skip-month-total:false}")
++    private boolean skipMonthTotal;
+ 
+     public HomeService(UserRepository users, MonthlyBudgetRepository budgets, ExpenseRepository expenses,
+             Clock clock) {
+@@ -42,7 +46,8 @@ public class HomeService {
+         YearMonth month = Months.current(clock);
+         Months.Range range = Months.range(month);
+         MonthlyBudget budget = requireCurrentBudget(userId, range);
+-        long spent = MonthlySpending.of(expenses.findAmounts(userId, range.from(), range.to())).total();
++        long spent = skipMonthTotal ? 0
++                : MonthlySpending.of(expenses.findAmounts(userId, range.from(), range.to())).total();
+         return new Home(month, user.petType(), new BudgetUsage(budget.amount(), spent));
+     }
+ 

@@ -1,6 +1,11 @@
 package org.altair.petgyebu_backend_renewal.auth;
 
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -10,6 +15,7 @@ import com.jayway.jsonpath.JsonPath;
 import java.time.Duration;
 import java.util.UUID;
 import org.altair.petgyebu_backend_renewal.support.MutableClock;
+import org.altair.petgyebu_backend_renewal.user.UserRepository;
 import org.altair.petgyebu_backend_renewal.support.TestAuthConfig;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -18,8 +24,15 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.JwsHeader;
+import org.springframework.security.oauth2.jwt.JwtClaimsSet;
+import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.junit.jupiter.Container;
@@ -39,6 +52,9 @@ class AuthApiTests {
     @Autowired MockMvc mvc;
     @Autowired MutableClock clock;
     @Autowired JdbcTemplate jdbc;
+    @Autowired JwtEncoder jwtEncoder;
+    @Autowired TokenIssuer tokenIssuer;
+    @MockitoSpyBean UserRepository users;
 
     @BeforeEach
     void reset() {
@@ -174,6 +190,28 @@ class AuthApiTests {
         jdbc.update("DELETE FROM users");
 
         expectUnauthorized(me(access));
+    }
+
+    @Test
+    void validlySignedTokenWithoutActiveSessionIdIsRejected() throws Exception {
+        String access = accessToken(login("kakao", "ok:k1"));
+        me(access).andExpect(status().isOk());
+
+        // 서명·만료는 유효하지만 sid가 없거나, 활성 세션이 아닌 UUID다.
+        expectUnauthorized(me(signedAccessToken(JwtClaimsSet.builder().subject("1"))));
+        expectUnauthorized(me(tokenIssuer.issueAccessToken(1L, UUID.randomUUID())));
+        me(access).andExpect(status().isOk());
+    }
+
+    @Test
+    void sessionCheckFailureDoesNotAuthenticate() throws Exception {
+        String access = accessToken(login("kakao", "ok:k1"));
+        doThrow(new DataAccessResourceFailureException("db down")).when(users).hasActiveSession(anyLong(), any());
+
+        // 세션 확인 중 DB 오류는 인증 필터 밖으로 전파되어 컨트롤러에 도달하지 않는다(fail closed).
+        // 실제 서버에서는 Spring Boot 기본 /error 처리로 500이 된다.
+        assertThatThrownBy(() -> me(access)).isInstanceOf(DataAccessResourceFailureException.class);
+        verify(users).hasActiveSession(anyLong(), any());
     }
 
     @Test
@@ -313,6 +351,12 @@ class AuthApiTests {
         JwtConfig config = new JwtConfig();
         JwtProperties other = new JwtProperties("x".repeat(32));
         return new TokenIssuer(config.jwtEncoder(other), clock).issueAccessToken(1L, UUID.randomUUID());
+    }
+
+    private String signedAccessToken(JwtClaimsSet.Builder claims) {
+        claims.issuedAt(clock.instant()).expiresAt(clock.instant().plus(TokenIssuer.ACCESS_TOKEN_TTL));
+        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256).build();
+        return jwtEncoder.encode(JwtEncoderParameters.from(header, claims.build())).getTokenValue();
     }
 
     private void expectUnauthorized(ResultActions result) throws Exception {

@@ -68,7 +68,8 @@ public class AuthService {
         }
     }
 
-    @Transactional(readOnly = true)
+    // 단일 SELECT라 트랜잭션 없이 자동 커밋으로 실행해도 커밋된 최신 세션을 본다(요청당 BEGIN/COMMIT 왕복 절약).
+    // 이 메서드에 쓰기나 여러 조회를 추가하지 않는다.
     public boolean isActiveSession(long userId, UUID sessionId) {
         return users.hasActiveSession(userId, sessionId);
     }

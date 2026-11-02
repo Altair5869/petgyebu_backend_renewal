@@ -1,0 +1,12 @@
+# app=after port=8091 endpoint=stats_current tier=normal k6 http_reqs=13564 (setup login 포함)
+ calls |                                                     query                                                      
+-------+----------------------------------------------------------------------------------------------------------------
+ 13514 | BEGIN READ ONLY
+ 13514 | SELECT * FROM monthly_budgets WHERE user_id = $1 AND budget_month = $2
+ 13514 | SELECT EXISTS (SELECT 1 FROM users WHERE id = $1 AND active_session_id = $2)
+ 13514 | SELECT category, amount FROM expenses WHERE user_id = $1 AND expense_date >= $2 AND expense_date < $3
+    50 | UPDATE users SET active_session_id = $1, refresh_token_hash = $2, refresh_token_expires_at = $3 WHERE id = $4
+    50 | BEGIN
+    50 | INSERT INTO users (provider, provider_user_id, last_login_time) VALUES ($1, $2, $3) ON CONFLICT (provider, pro
+(7 rows)
+

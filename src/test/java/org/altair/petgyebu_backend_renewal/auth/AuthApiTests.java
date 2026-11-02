@@ -9,6 +9,7 @@ import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -215,7 +216,8 @@ class AuthApiTests {
                 .andExpect(jsonPath("$.code").value("INTERNAL_ERROR"))
                 .andExpect(jsonPath("$.message").value("일시적인 오류가 발생했습니다."))
                 .andExpect(jsonPath("$.userId").doesNotExist())
-                .andExpect(content().string(not(containsString("db down"))));
+                .andExpect(content().string(not(containsString("db down"))))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"));
         verify(users).hasActiveSession(anyLong(), any());
     }
 

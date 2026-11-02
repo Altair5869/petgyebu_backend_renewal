@@ -13,7 +13,8 @@ import org.springframework.http.MediaType;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 // 보안 필터 단계의 처리되지 않은 예외(예: 세션 확인 중 DB 오류)를 ApiExceptionHandler의 500 응답과 같은 본문으로 바꾼다.
-// MVC 단계 예외는 ApiExceptionHandler와 DispatcherServlet이 응답으로 바꾸므로 여기까지 올라오지 않는다.
+// MVC 단계 예외는 ApiExceptionHandler와 DispatcherServlet이 응답으로 바꾸므로 보통 여기까지 올라오지 않는다
+// (예외: 그 응답을 쓰다 실패한 경우 — 연결이 끊겼다면 이 응답도 전달되지 않는다).
 // 서블릿 필터로 중복 등록되지 않도록 빈으로 만들지 않고 SecurityConfig에서 직접 추가한다.
 class UnhandledFilterErrorJson extends OncePerRequestFilter {
 

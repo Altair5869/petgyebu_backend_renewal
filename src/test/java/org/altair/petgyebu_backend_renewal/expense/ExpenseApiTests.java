@@ -14,12 +14,19 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.jayway.jsonpath.JsonPath;
 import java.nio.charset.StandardCharsets;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.Base64;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.support.MutableClock;
 import org.altair.petgyebu_backend_renewal.support.TestAuthConfig;
@@ -594,6 +601,51 @@ class ExpenseApiTests {
         create(a, body(3000, "2026-10-12", "HEALTH", null));
         expectInvalid(update(a, 1, "{\"amount\":0,\"category\":\"X\"}"), "amount");
         expectInvalid(update(a, 1, "{\"expenseDate\":\"2026-10-14\",\"memo\":5}"), "expenseDate");
+    }
+
+    // PATCH는 보낸 필드만 합친 뒤 모든 열을 쓰므로, 잠금 없이 읽으면 동시에 커밋된 다른 열 변경을 옛 값으로 덮는다.
+    @Test
+    void concurrentPatchDoesNotOverwriteCommittedChange() throws Exception {
+        String a = accessToken("a");
+        create(a, body(3000, "2026-10-12", "HEALTH", "old")).andExpect(status().isCreated());
+        ExecutorService pool = Executors.newSingleThreadExecutor();
+        try (Connection other = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(),
+                postgres.getPassword())) {
+            other.setAutoCommit(false);
+            try (PreparedStatement ps = other.prepareStatement("UPDATE expenses SET amount = 7000 WHERE id = 1")) {
+                assertThat(ps.executeUpdate()).isEqualTo(1);
+            }
+            Future<Integer> patch = pool.submit(() -> update(a, 1, "{\"memo\":\"new\"}").andReturn().getResponse()
+                    .getStatus());
+            awaitBlockedOnLock();
+            other.commit();
+
+            assertThat(patch.get(30, TimeUnit.SECONDS)).isEqualTo(200);
+        } finally {
+            pool.shutdownNow();
+        }
+
+        Map<String, Object> row = jdbc.queryForMap("SELECT amount, memo FROM expenses WHERE id = 1");
+        assertThat(row.get("amount")).isEqualTo(7000L);
+        assertThat(row.get("memo")).isEqualTo("new");
+    }
+
+    // 다른 세션이 잠금을 기다리는 것이 보일 때까지 폴링한다.
+    private void awaitBlockedOnLock() {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            // 같은 커넥션의 트랜잭션 안에서는 첫 조회 때의 세션 목록이 유지되므로 매번 비운다.
+            jdbc.execute("SELECT pg_stat_clear_snapshot()");
+            Integer waiting = jdbc.queryForObject("""
+                    SELECT count(*) FROM pg_stat_activity
+                    WHERE wait_event_type = 'Lock' AND datname = current_database()
+                    """, Integer.class);
+            if (waiting != null && waiting >= 1) {
+                return;
+            }
+            Thread.onSpinWait();
+        }
+        throw new IllegalStateException("PATCH가 잠금 대기에 들어가지 않았다.");
     }
 
     @Test

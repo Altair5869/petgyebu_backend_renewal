@@ -102,7 +102,8 @@ public class ExpenseService {
     @Transactional
     public Expense update(long userId, long id, JsonNode body) {
         RequestBodies.requireObject(body);
-        Expense current = get(userId, id);
+        // 잠금 없이 읽으면 그사이 커밋된 다른 PATCH의 변경을 옛 값으로 덮는다. 커밋까지 행을 잠근다.
+        Expense current = expenses.findByIdAndUserIdForUpdate(id, userId).orElseThrow(ApiException::expenseNotFound);
         Expense updated = ExpensePatch.from(body, seoulToday()).applyTo(current, OffsetDateTime.now(clock));
         // 같은 달 안의 수정은 건수가 늘지 않으므로 상한을 보지 않는다.
         if (!YearMonth.from(updated.expenseDate()).equals(YearMonth.from(current.expenseDate()))) {

@@ -15,6 +15,10 @@ public interface ExpenseRepository extends Repository<Expense, Long> {
 
     Optional<Expense> findByIdAndUserId(long id, long userId);
 
+    // PATCH 전용. 보낸 필드만 합친 뒤 모든 열을 쓰므로 행을 잠가 읽어 동시 수정의 변경 유실을 막는다.
+    @Query("SELECT * FROM expenses WHERE id = :id AND user_id = :userId FOR UPDATE")
+    Optional<Expense> findByIdAndUserIdForUpdate(long id, long userId);
+
     Optional<Expense> findByUserIdAndIdempotencyKey(long userId, UUID idempotencyKey);
 
     @Modifying

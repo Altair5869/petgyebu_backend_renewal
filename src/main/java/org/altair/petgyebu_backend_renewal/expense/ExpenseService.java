@@ -94,7 +94,6 @@ public class ExpenseService {
         }
     }
 
-    @Transactional(readOnly = true)
     public Expense get(long userId, long id) {
         return expenses.findByIdAndUserId(id, userId).orElseThrow(ApiException::expenseNotFound);
     }
@@ -122,7 +121,6 @@ public class ExpenseService {
         }
     }
 
-    @Transactional(readOnly = true)
     public Page list(long userId, String monthText, int limit, String cursor, String categoryText,
             String dateText) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);

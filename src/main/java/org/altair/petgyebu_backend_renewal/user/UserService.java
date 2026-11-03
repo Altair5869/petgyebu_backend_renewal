@@ -34,7 +34,6 @@ public class UserService {
     }
 
     // 인증 직후 행이 사라졌다면(동시 탈퇴) 종료된 로그인과 같이 취급한다.
-    @Transactional(readOnly = true)
     public User me(long userId) {
         return users.findById(userId).orElseThrow(ApiException::unauthorized);
     }

@@ -1,0 +1,31 @@
+Timing is on.
+ ?column? 
+----------
+        1
+(1 row)
+
+Time: 2.225 ms
+ ?column? 
+----------
+        1
+(1 row)
+
+Time: 1.854 ms
+ ?column? 
+----------
+        1
+(1 row)
+
+Time: 2.034 ms
+ ?column? 
+----------
+        1
+(1 row)
+
+Time: 2.199 ms
+ ?column? 
+----------
+        1
+(1 row)
+
+Time: 2.718 ms

@@ -1,0 +1,11 @@
+# app=after port=8090 endpoint=home tier=normal k6 http_reqs=6388 (setup login 포함), 지연 toxic 1ms
+ calls |                                                     query                                                      
+-------+----------------------------------------------------------------------------------------------------------------
+  6338 | SELECT EXISTS (SELECT $3 FROM users WHERE id = $1 AND active_session_id = $2)
+  6338 | SELECT u.pet_type, b.amount AS budget_amount FROM users u LEFT JOIN monthly_budgets b ON b.user_id = u.id AND 
+  6338 | SELECT category, amount FROM expenses WHERE user_id = $1 AND expense_date >= $2 AND expense_date < $3
+    50 | INSERT INTO users (provider, provider_user_id, last_login_time) VALUES ($1, $2, $3) ON CONFLICT (provider, pro
+    50 | UPDATE users SET active_session_id = $1, refresh_token_hash = $2, refresh_token_expires_at = $3 WHERE id = $4
+    50 | BEGIN
+(6 rows)
+

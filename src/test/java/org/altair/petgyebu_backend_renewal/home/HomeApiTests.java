@@ -165,6 +165,16 @@ class HomeApiTests {
     }
 
     @Test
+    void otherUsersCurrentBudgetDoesNotSatisfyCurrentMonth() throws Exception {
+        String a = accessToken("a");
+        accessToken("b");
+        setPet(1, "DOG");
+        setBudget(2, "2026-10-01", 100000);
+
+        expectConflict(home(a), "BUDGET_REQUIRED");
+    }
+
+    @Test
     void onlyCurrentSeoulMonthExpensesCount() throws Exception {
         String a = readyUser("a", 100000);
         seedExpense(1, "2026-09-30", 70000);

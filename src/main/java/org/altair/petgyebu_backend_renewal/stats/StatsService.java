@@ -15,7 +15,6 @@ import org.altair.petgyebu_backend_renewal.expense.ExpenseRepository;
 import org.altair.petgyebu_backend_renewal.expense.MonthlySpending;
 import org.altair.petgyebu_backend_renewal.expense.MonthlySpending.CategoryTotal;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class StatsService {
@@ -48,7 +47,6 @@ public class StatsService {
     }
 
     // 지출 행을 한 번만 조회해 합계와 카테고리를 함께 계산한다(카테고리 합 = 월 합계).
-    @Transactional(readOnly = true)
     public Stats stats(long userId, String monthText) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);
         Months.Range range = Months.range(month);
@@ -63,7 +61,6 @@ public class StatsService {
     }
 
     // 지출이 있는 날만 날짜 오름차순으로 돌려준다. 달력 합 = 월 stats 합이다.
-    @Transactional(readOnly = true)
     public DailyTotals dailyTotals(long userId, String monthText) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);
         Months.Range range = Months.range(month);

@@ -13,7 +13,6 @@ import org.altair.petgyebu_backend_renewal.expense.ExpenseDayAmount;
 import org.altair.petgyebu_backend_renewal.expense.ExpenseRepository;
 import org.altair.petgyebu_backend_renewal.expense.MonthlySpending;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class InsightService {
@@ -34,7 +33,6 @@ public class InsightService {
     }
 
     // 지출 행을 한 번만 조회해 주간 비교와 현재 월 합계를 함께 계산한다(한 스냅숏).
-    @Transactional(readOnly = true)
     public Insights insights(long userId) {
         LocalDate today = LocalDate.ofInstant(clock.instant(), SEOUL);
         Months.Range month = Months.range(YearMonth.from(today));

@@ -38,7 +38,6 @@ public class CategoryGoalService {
         this.clock = clock;
     }
 
-    @Transactional(readOnly = true)
     public MonthGoals get(long userId, String monthText) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);
         Months.Range range = Months.range(month);

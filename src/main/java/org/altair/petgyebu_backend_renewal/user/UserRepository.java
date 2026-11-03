@@ -1,5 +1,6 @@
 package org.altair.petgyebu_backend_renewal.user;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.util.Optional;
 import java.util.UUID;
@@ -10,6 +11,15 @@ import org.springframework.data.repository.Repository;
 public interface UserRepository extends Repository<User, Long> {
 
     Optional<User> findById(Long id);
+
+    // 홈 전용. 사용자 행이 없으면 빈 값, 그 달 예산이 없으면 budgetAmount가 null이다.
+    @Query("""
+            SELECT u.pet_type, b.amount AS budget_amount
+            FROM users u
+            LEFT JOIN monthly_budgets b ON b.user_id = u.id AND b.budget_month = :month
+            WHERE u.id = :id
+            """)
+    Optional<PetAndBudget> findPetAndBudget(long id, LocalDate month);
 
     @Query("""
             INSERT INTO users (provider, provider_user_id, last_login_time)

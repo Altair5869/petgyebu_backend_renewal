@@ -17,6 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.PreparedStatement;
+import java.sql.ResultSet;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.OffsetDateTime;
@@ -612,17 +613,25 @@ class ExpenseApiTests {
         try (Connection other = DriverManager.getConnection(postgres.getJdbcUrl(), postgres.getUsername(),
                 postgres.getPassword())) {
             other.setAutoCommit(false);
+            int otherPid;
+            try (PreparedStatement ps = other.prepareStatement("SELECT pg_backend_pid()");
+                    ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                otherPid = rs.getInt(1);
+            }
             try (PreparedStatement ps = other.prepareStatement("UPDATE expenses SET amount = 7000 WHERE id = 1")) {
                 assertThat(ps.executeUpdate()).isEqualTo(1);
             }
             Future<Integer> patch = pool.submit(() -> update(a, 1, "{\"memo\":\"new\"}").andReturn().getResponse()
                     .getStatus());
-            awaitBlockedOnLock();
+            awaitBlockedBy(otherPid);
             other.commit();
 
             assertThat(patch.get(30, TimeUnit.SECONDS)).isEqualTo(200);
         } finally {
-            pool.shutdownNow();
+            // 실패 경로에서도 PATCH가 끝난 뒤 다음 테스트로 넘어간다(other를 닫으면 롤백되어 잠금이 풀린다).
+            pool.shutdown();
+            pool.awaitTermination(30, TimeUnit.SECONDS);
         }
 
         Map<String, Object> row = jdbc.queryForMap("SELECT amount, memo FROM expenses WHERE id = 1");
@@ -630,16 +639,16 @@ class ExpenseApiTests {
         assertThat(row.get("memo")).isEqualTo("new");
     }
 
-    // 다른 세션이 잠금을 기다리는 것이 보일 때까지 폴링한다.
-    private void awaitBlockedOnLock() {
+    // blockerPid가 잡은 잠금을 기다리는 세션이 보일 때까지 폴링한다(다른 대기 세션과 혼동하지 않도록 차단자로 좁힌다).
+    private void awaitBlockedBy(int blockerPid) {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
         while (System.nanoTime() < deadline) {
-            // 같은 커넥션의 트랜잭션 안에서는 첫 조회 때의 세션 목록이 유지되므로 매번 비운다.
+            // 이 클래스는 자동 커밋이라 통계 스냅샷이 남지 않지만, 트랜잭션 안에서 불려도 최신 목록을 보도록 방어로 비운다.
             jdbc.execute("SELECT pg_stat_clear_snapshot()");
             Integer waiting = jdbc.queryForObject("""
                     SELECT count(*) FROM pg_stat_activity
-                    WHERE wait_event_type = 'Lock' AND datname = current_database()
-                    """, Integer.class);
+                    WHERE wait_event_type = 'Lock' AND pg_blocking_pids(pid) @> ARRAY[?]
+                    """, Integer.class, blockerPid);
             if (waiting != null && waiting >= 1) {
                 return;
             }

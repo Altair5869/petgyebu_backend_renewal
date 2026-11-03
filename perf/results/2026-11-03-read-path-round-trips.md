@@ -7,7 +7,8 @@
 
 ## 변경
 
-- 조회 메서드 8곳에서 `@Transactional(readOnly = true)`를 지웠다: `HomeService.home`, `StatsService.stats`·`dailyTotals`, `InsightService.insights`, `ExpenseService.get`·`list`, `UserService.me`, `CategoryGoalService.get`. 쓰기 트랜잭션은 그대로다.
+- 조회 메서드 7곳에서 `@Transactional(readOnly = true)`를 지웠다: `HomeService.home`, `StatsService.stats`·`dailyTotals`, `InsightService.insights`, `ExpenseService.get`·`list`, `CategoryGoalService.get`. 쓰기 트랜잭션은 그대로다.
+  - `UserService.me`는 그대로 두었다. 이 메서드가 부르는 `UserRepository.findById`는 `@Query` 없는 기본 메서드라 Spring Data JDBC의 `SimpleJdbcRepository`(클래스에 `@Transactional(readOnly = true)`)로 실행된다. 서비스 애너테이션을 지워도 트랜잭션이 남아 왕복이 줄지 않는다.
   - PostgreSQL 기본 격리 수준(READ COMMITTED)에서는 트랜잭션 안에서도 문장마다 새 스냅숏을 본다. 그래서 여러 SELECT를 읽기 전용 트랜잭션으로 묶어도 문장 사이의 일관성은 생기지 않았고 `BEGIN`/`COMMIT` 왕복만 더해졌다. 조회가 하나뿐인 메서드는 그 조회의 스냅숏을 그대로 쓴다.
 - 홈은 `users.findById`와 `budgets.find`를 `UserRepository.findPetAndBudget` 한 쿼리(`users LEFT JOIN monthly_budgets ON user_id, budget_month`)로 바꿨다. 오류 순서(행 없음 401 → `PET_REQUIRED` → `BUDGET_REQUIRED`)와 Service의 월 합계 계산(`findAmounts` → `MonthlySpending`)은 같다.
 - 테스트 추가(`HomeApiTests.otherUsersCurrentBudgetDoesNotSatisfyCurrentMonth`): 다른 사용자에게만 이번 달 예산이 있으면 `BUDGET_REQUIRED`다(JOIN 조건에서 `user_id`가 빠지면 실패). 나머지 경계는 기존 홈 테스트가 덮는다.
@@ -46,11 +47,12 @@
 
 - p95 중앙값 감소: home normal 25.2%, heavy 17.7%, stats_current normal 16.6%, heavy 12.7%.
 - p50 중앙값 감소: home 4.0ms(normal)·3.7ms(heavy), stats_current 1.7ms(normal 1.69)·1.7ms(heavy 1.72). 추정으로 줄어든 왕복(home 약 2개, stats 1개, 왕복 약 2ms)의 크기와 맞는다.
-- r1의 변경 후 home(normal 29.65, heavy 19.11ms)은 변경 전보다 높았다. r2 시작 때 장비 부하가 16.9로 가장 높았으므로 r1 후반에 다른 프로세스와 CPU를 다툰 것으로 보이나 원인은 분리하지 않았다. r2·r3에서는 8개 비교 모두 변경 후가 p95·p50 모두 낮았다.
+- r1의 변경 후 home(normal 29.65, heavy 19.11ms)과 heavy stats_current(15.00ms, 변경 전 14.85)는 변경 전보다 높았다. r2 시작 때 장비 부하가 16.9로 가장 높았으므로 r1 후반에 다른 프로세스와 CPU를 다툰 것으로 보이나 원인은 분리하지 않았다. r2·r3에서는 8개 비교 모두 변경 후가 p95·p50 모두 낮았다.
+- heavy stats_current는 개선이 작고 흔들림이 크다. 같은 라운드끼리 p95 차이는 +0.15 / −0.34 / −4.50ms로, 12.7% 감소는 주로 r3에서 나왔다. p50은 세 라운드 모두 낮아졌다(−0.33 / −1.05 / −3.22ms).
 - 매 라운드 변경 전을 먼저 쟀으므로 시간대 영향이 한쪽으로 기울 수 있다. 판정은 3회 중앙값으로 했다.
 - 이번 세션의 절대값은 이전 세션(같은 2ms 조건 home p95 19–42ms)과 다르다. 비교는 이번 세션의 전후 쌍만 쓴다.
 
 ## 확인하지 않은 것
 
-- 인사이트, 달력, 지출 단건·목록, 내 정보, 카테고리 목표 조회의 부하 측정. 같은 방식으로 `BEGIN READ ONLY`/`COMMIT`이 빠지므로 요청당 왕복 1개가 준다고 추정한다.
+- 인사이트, 달력, 지출 단건·목록, 카테고리 목표 조회의 부하 측정. 같은 방식으로 `BEGIN READ ONLY`/`COMMIT`이 빠지므로 요청당 왕복 1개가 준다고 추정한다.
 - 실제 Cloud Run·Supabase 환경.

@@ -1,5 +1,6 @@
 package org.altair.petgyebu_backend_renewal.goal;
 
+import jakarta.validation.Valid;
 import java.math.BigDecimal;
 import java.util.List;
 import org.altair.petgyebu_backend_renewal.auth.AuthUser;
@@ -13,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import tools.jackson.databind.JsonNode;
 
 @RestController
 @RequestMapping("/api/v1/months/{month}/category-goals")
@@ -49,8 +49,8 @@ public class CategoryGoalController {
 
     @PutMapping("/{category}")
     PutResponse put(@AuthenticationPrincipal AuthUser authUser, @PathVariable String month,
-            @PathVariable String category, @RequestBody JsonNode body) {
-        CategoryGoal goal = service.put(authUser.userId(), month, category, body);
+            @PathVariable String category, @Valid @RequestBody CategoryGoalRequest request) {
+        CategoryGoal goal = service.put(authUser.userId(), month, category, request);
         return new PutResponse(month, goal.category().name(), goal.amount());
     }
 

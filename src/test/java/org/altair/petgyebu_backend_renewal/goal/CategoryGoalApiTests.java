@@ -191,11 +191,12 @@ class CategoryGoalApiTests {
     }
 
     @Test
-    void validationOrderIsMonthCategoryBodyThenBudget() throws Exception {
+    void validationOrderIsBodyMonthCategoryThenBudget() throws Exception {
         String a = accessToken("a");
 
-        expectInvalid(putGoal(a, "2026-11", "cafe", "[]"), "month");
-        expectInvalid(putGoal(a, "2026-10", "cafe", "[]"), "category");
+        expectInvalid(putGoal(a, "2026-11", "cafe", "{\"amount\":0}"), "amount");
+        expectInvalid(putGoal(a, "2026-11", "cafe", "{\"amount\":1000}"), "month");
+        expectInvalid(putGoal(a, "2026-10", "cafe", "{\"amount\":1000}"), "category");
         putGoal(a, "2026-10", "CAFE", "[]").andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
         expectInvalid(putGoal(a, "2026-10", "CAFE", "{\"amount\":0}"), "amount");

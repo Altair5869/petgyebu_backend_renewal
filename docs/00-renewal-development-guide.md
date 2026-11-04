@@ -118,10 +118,10 @@
 | 3 | POST | `/api/v1/auth/logout` | 현재 로그인 무효화 |
 | 4 | GET | `/api/v1/users/me` | `id, provider, petType` 조회. `provider`는 `KAKAO\|GOOGLE`, `petType`은 `CAT\|DOG`, 선택 전 `petType: null` |
 | 5 | DELETE | `/api/v1/users/me` | 회원 탈퇴 |
-| 6 | PUT | `/api/v1/users/me/pet` | CAT/DOG 선택·변경, 갱신된 내 정보 반환. `petType` 생략·`null`·그 외 값은 400 `INVALID_REQUEST` |
+| 6 | PUT | `/api/v1/users/me/pet` | CAT/DOG 선택·변경, 갱신된 내 정보 반환. `petType` 생략·`null`·그 외 값은 400 `INVALID_REQUEST`(`CAT 또는 DOG만 허용합니다.`), 문자열이 아니면 `형식이 올바르지 않습니다.` |
 | 7 | GET | `/api/v1/home` | 현재 월 펫·금액 요약 |
 | 8 | GET | `/api/v1/months/{month}/budget` | 해당 월 예산 조회, 미설정 시 `amount: null`. `{month}`는 지출 목록과 같이 2000-01부터 서울 기준 현재 월까지의 `YYYY-MM`만 허용하고 그 외는 400 `INVALID_REQUEST`(`month`) |
-| 9 | PUT | `/api/v1/months/{month}/budget` | 2000-01부터 서울 기준 현재 월까지 예산 생성·변경. 미래 월과 형식 오류는 400 `INVALID_REQUEST`(`month`) |
+| 9 | PUT | `/api/v1/months/{month}/budget` | 2000-01부터 서울 기준 현재 월까지 예산 생성·변경. 본문(`amount`)을 `month`보다 먼저 검사한다. `amount`는 1~100000000 정수이며 범위 밖·생략·`null`은 `1 이상 100000000 이하의 정수여야 합니다.`, JSON 타입이 틀리면 `형식이 올바르지 않습니다.`. 미래 월과 형식 오류는 400 `INVALID_REQUEST`(`month`) |
 | 10 | POST | `/api/v1/expenses` | 지출 생성. 선택 헤더 `Idempotency-Key`(UUID)가 있으면 같은 사용자·키·내용의 재시도는 새로 만들지 않고 200과 기존 지출을 돌려준다 |
 | 11 | GET | `/api/v1/months/{month}/expenses` | 지출 커서 목록. 선택 `category`(7개 값)로 한 카테고리만 거를 수 있다. 같은 정렬·`limit`·커서 규칙이며 잘못된 값은 400 `INVALID_REQUEST`(`category`). 선택 `date`(`YYYY-MM-DD`)로 그날 지출만 거를 수 있으며 `{month}` 안의 날짜여야 하고 아니면 400 `INVALID_REQUEST`(`date`). 현재 월의 미래 날짜는 200과 빈 목록이다. `category`와 함께 쓸 수 있다 |
 | 12 | GET | `/api/v1/expenses/{expenseId}` | 지출 단건 조회·수정 초기값 |
@@ -130,7 +130,7 @@
 | 15 | GET | `/api/v1/months/{month}/stats` | 현재·과거 월 숫자 통계 |
 | 16 | GET | `/api/v1/insights` | 서울 기준 오늘의 카테고리별 이번 주·지난주 같은 요일 범위 비교와 현재 월 예산 소진 예측. 요청 파라미터 없음, 펫·예산 미설정이어도 200 |
 | 17 | GET | `/api/v1/months/{month}/category-goals` | 그 달 카테고리 목표와 사용 현황. 목표·예산이 없어도 200 |
-| 18 | PUT | `/api/v1/months/{month}/category-goals/{category}` | 카테고리 목표 생성·변경. 그 달 예산이 필요하고 목표 합이 예산을 넘으면 409 |
+| 18 | PUT | `/api/v1/months/{month}/category-goals/{category}` | 카테고리 목표 생성·변경. 본문(`amount`, 예산 PUT과 같은 규칙) → `month` → `category` 순으로 검사한다. 그 달 예산이 필요하고 목표 합이 예산을 넘으면 409 |
 | 19 | DELETE | `/api/v1/months/{month}/category-goals/{category}` | 카테고리 목표 삭제, 목표가 없어도 204 |
 | 20 | GET | `/api/v1/months/{month}/daily-totals` | 그 달 날짜별 지출 합계(달력용). 지출이 있는 날만 담고 지출이 없어도 200 |
 
@@ -171,7 +171,7 @@
 - `POST /expenses`의 `Idempotency-Key` 헤더는 선택이며 없으면 매번 새 지출을 만든다. 값은 표준 36자 UUID(대소문자 무관)이며 형식이 틀리면 `400 INVALID_REQUEST`(`Idempotency-Key`)다. 본문 검증이 키 조회보다 먼저다. 같은 사용자·같은 키에 정규화 후 `amount`·`expenseDate`·`category`·`memo`가 같으면 `200`과 기존 지출, 본문이 다르면 `409 IDEMPOTENCY_KEY_REUSED`다. 지출을 삭제하면 그 키로 다시 `201`로 만들 수 있다.
 - 월 지출 건수 상한: 사용자별로 `expenseDate`가 속한 월마다 지출은 최대 1,000건이다. 그 달이 이미 1,000건이면 `POST /expenses`는 `409 MONTHLY_EXPENSE_LIMIT_EXCEEDED`이고 행을 만들지 않는다. 검사 순서는 본문 → `Idempotency-Key` 형식 → 기존 키 재시도(가득 찬 달이어도 `200`) → 상한이다. `PATCH /expenses/{expenseId}`는 날짜가 다른 월로 바뀔 때만 대상 월을 같은 기준으로 검사하며(본문 → 존재·소유 404 → 필드 검증 → 상한) 거부되면 행은 바뀌지 않는다. 같은 월 안의 수정은 상한을 보지 않는다. 잠금 없이 건수만 확인하므로 경계에서 동시에 처리 중인 생성 요청 수(인스턴스당 동시 요청 수 × 인스턴스 수)만큼 상한을 넘을 수 있다. 한 번 넘으면 이후 요청은 모두 거부된다.
 - 인증 관련 오류 코드: 입력 오류 `400 INVALID_REQUEST`(`fields` 포함), 공급자 확인 실패 `401 SOCIAL_LOGIN_FAILED`, 토큰 없음·무효·만료·종료된 로그인 `401 UNAUTHORIZED`(사유 구분 없음), 공급자 장애·응답 이상·설정 누락 `503 SOCIAL_LOGIN_UNAVAILABLE`.
-- 목표 규칙: 목표는 달마다 따로 정하며 다음 달로 이어지지 않는다. `{month}`는 예산과 같이 2000-01부터 서울 기준 현재 월까지만 받는다. `{category}`는 7개 값(대소문자는 지출 생성과 같다)이다. PUT 검사 순서는 `month` → `category` → 본문 → 예산 존재 → 합계 한도이며, 그 달 예산이 없으면 409 `BUDGET_REQUIRED`, `(다른 카테고리 목표 합) + amount > 예산`이면 409 `CATEGORY_GOALS_EXCEED_BUDGET`(합이 예산과 같으면 허용, 행은 바뀌지 않음)이다. 이 규칙은 하나뿐이어서 예산이 이미 목표 합보다 낮은 상태에서 목표를 줄이는 PUT도 결과 합이 예산을 넘으면 막고, 목표 삭제나 예산 증액으로 푼다. 예산을 목표 합보다 낮추는 것은 허용하며 이때 목표 GET이 `goalsExceedBudget: true`를 내려 앱이 알린다. 합계 한도는 절대 불변식이 아니라 입력 가드다. 목표 PUT은 예산 행을 잠그지 않고 예산·목표를 읽어 검사한 뒤 upsert하므로, 같은 사용자·월의 동시 PUT이 함께 통과하면 목표 합이 예산을 넘을 수 있다. 이 상태는 예산을 낮춘 경우와 같이 GET의 `goalsExceedBudget: true`로 드러나고 목표 삭제나 예산 증액으로 푼다. DELETE는 예산이 없어도 400·409 없이 204이며 다른 사용자의 행은 건드리지 않는다. 펫 상태는 카테고리 목표와 무관하게 전체 예산 기준이다.
+- 목표 규칙: 목표는 달마다 따로 정하며 다음 달로 이어지지 않는다. `{month}`는 예산과 같이 2000-01부터 서울 기준 현재 월까지만 받는다. `{category}`는 7개 값(대소문자는 지출 생성과 같다)이다. PUT 검사 순서는 본문 → `month` → `category` → 예산 존재 → 합계 한도이며, 그 달 예산이 없으면 409 `BUDGET_REQUIRED`, `(다른 카테고리 목표 합) + amount > 예산`이면 409 `CATEGORY_GOALS_EXCEED_BUDGET`(합이 예산과 같으면 허용, 행은 바뀌지 않음)이다. 이 규칙은 하나뿐이어서 예산이 이미 목표 합보다 낮은 상태에서 목표를 줄이는 PUT도 결과 합이 예산을 넘으면 막고, 목표 삭제나 예산 증액으로 푼다. 예산을 목표 합보다 낮추는 것은 허용하며 이때 목표 GET이 `goalsExceedBudget: true`를 내려 앱이 알린다. 합계 한도는 절대 불변식이 아니라 입력 가드다. 목표 PUT은 예산 행을 잠그지 않고 예산·목표를 읽어 검사한 뒤 upsert하므로, 같은 사용자·월의 동시 PUT이 함께 통과하면 목표 합이 예산을 넘을 수 있다. 이 상태는 예산을 낮춘 경우와 같이 GET의 `goalsExceedBudget: true`로 드러나고 목표 삭제나 예산 증액으로 푼다. DELETE는 예산이 없어도 400·409 없이 204이며 다른 사용자의 행은 건드리지 않는다. 펫 상태는 카테고리 목표와 무관하게 전체 예산 기준이다.
 - 지출 목록의 입력 검증 순서는 `month` → `limit` → `category` → `date` → `cursor`다. `date`가 있으면 조회 범위를 그날로 좁히며 정렬·`limit`·커서 규칙은 그대로다.
 - 성공 응답은 지출 생성 201(같은 `Idempotency-Key` 재시도는 200), 조회·수정 200, 지출 삭제·로그아웃·탈퇴 204다. 예산 PUT과 목표 PUT은 생성·변경 모두 200이며 목표 삭제는 204다.
 

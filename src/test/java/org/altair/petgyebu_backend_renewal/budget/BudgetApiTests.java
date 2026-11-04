@@ -38,7 +38,6 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import tools.jackson.databind.node.JsonNodeFactory;
 
 // TestAuthConfig.START = 2026-10-13T00:00Z = 서울 2026-10-13 09:00 → 현재 월 2026-10
 @Testcontainers
@@ -292,7 +291,7 @@ class BudgetApiTests {
             for (long amount : amounts) {
                 results.add(pool.submit(() -> {
                     start.await();
-                    return budgetService.put(1L, "2026-10", JsonNodeFactory.instance.objectNode().put("amount", amount));
+                    return budgetService.put(1L, "2026-10", new BudgetRequest(amount));
                 }));
             }
             start.countDown();
@@ -321,7 +320,7 @@ class BudgetApiTests {
         // 인증 통과 직후 동시 탈퇴로 사용자 행이 사라진 상황. HTTP는 인증에서 먼저 거절되므로 서비스를 직접 호출한다.
         jdbc.update("DELETE FROM users WHERE id = 1");
 
-        assertThatThrownBy(() -> budgetService.put(1, "2026-10", JsonNodeFactory.instance.objectNode().put("amount", 1000)))
+        assertThatThrownBy(() -> budgetService.put(1, "2026-10", new BudgetRequest(1000L)))
                 .isInstanceOfSatisfying(ApiException.class, e -> {
                     assertThat(e.status().value()).isEqualTo(401);
                     assertThat(e.code()).isEqualTo("UNAUTHORIZED");
@@ -330,10 +329,43 @@ class BudgetApiTests {
     }
 
     @Test
-    void putChecksMonthBeforeBody() throws Exception {
+    void putChecksBodyBeforeMonth() throws Exception {
         String a = accessToken("a");
-        expectInvalid(putBudget(a, "2026-11", "[]"), "month");
-        expectInvalid(putBudget(a, "2026-9", "{\"amount\":0}"), "month");
+        expectInvalid(putBudget(a, "2099-01", "{\"amount\":0}"), "amount");
+        expectInvalid(putBudget(a, "2026-9", "{\"amount\":0}"), "amount");
+        expectInvalid(putBudget(a, "2099-01", "{\"amount\":1000}"), "month");
+        assertThat(budgetCount()).isZero();
+    }
+
+    @Test
+    void putRejectsLooseAmounts() throws Exception {
+        String a = accessToken("a");
+        String typeError = "형식이 올바르지 않습니다.";
+        String rangeError = "1 이상 100000000 이하의 정수여야 합니다.";
+
+        for (String amount : List.of("\"5000\"", "1.5", "1.0", "1e3", "true", "\"\"", "9223372036854775808")) {
+            expectInvalid(putBudget(a, "2026-10", "{\"amount\":" + amount + "}"), "amount", typeError);
+        }
+        for (String body : List.of("{\"amount\":0}", "{\"amount\":100000001}", "{\"amount\":null}", "{}")) {
+            expectInvalid(putBudget(a, "2026-10", body), "amount", rangeError);
+        }
+        for (String body : List.of("[]", "\"x\"", "")) {
+            putBudget(a, "2026-10", body).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                    .andExpect(jsonPath("$.message").value("요청 본문을 읽을 수 없습니다."))
+                    .andExpect(jsonPath("$.fields").doesNotExist());
+        }
+        assertThat(budgetCount()).isZero();
+    }
+
+    @Test
+    void putSyntaxErrorInsideValueIsBadRequest() throws Exception {
+        String a = accessToken("a");
+        // 값 안의 문법 오류는 필드를 가리키지 않는 일반 읽기 오류다.
+        putBudget(a, "2026-10", "{\"amount\":tru}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("요청 본문을 읽을 수 없습니다."))
+                .andExpect(jsonPath("$.fields").doesNotExist());
         assertThat(budgetCount()).isZero();
     }
 
@@ -366,6 +398,11 @@ class BudgetApiTests {
     private ResultActions putBudget(String token, String month, String json) throws Exception {
         return mvc.perform(put("/api/v1/months/" + month + "/budget").header("Authorization", "Bearer " + token)
                 .contentType(MediaType.APPLICATION_JSON).content(json));
+    }
+
+    private static void expectInvalid(ResultActions result, String field, String message) throws Exception {
+        expectInvalid(result, field);
+        result.andExpect(jsonPath("$.fields[0].message").value(message));
     }
 
     private static void expectInvalid(ResultActions result, String field) throws Exception {

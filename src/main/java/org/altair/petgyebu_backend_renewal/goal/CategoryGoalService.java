@@ -15,7 +15,6 @@ import org.altair.petgyebu_backend_renewal.expense.MonthlySpending;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.JsonNode;
 
 @Service
 public class CategoryGoalService {
@@ -49,10 +48,9 @@ public class CategoryGoalService {
 
     // 잠금 없이 예산·목표를 읽고 검사한 뒤 upsert한다. 동시 PUT이 함께 통과하면 합이 예산을 넘을 수 있고,
     // 그 상태는 예산을 낮춘 경우와 같이 GET의 goalsExceedBudget으로 드러난다.
-    public CategoryGoal put(long userId, String monthText, String categoryText, JsonNode body) {
+    public CategoryGoal put(long userId, String monthText, String categoryText, CategoryGoalRequest request) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);
         Category category = Category.parse(categoryText);
-        CategoryGoalRequest request = CategoryGoalRequest.from(body);
         MonthlyBudget budget = requireMonthBudget(userId, month);
         validateWithinBudget(userId, month, category, request.amount(), budget);
         try {

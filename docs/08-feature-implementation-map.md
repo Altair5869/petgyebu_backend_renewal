@@ -30,10 +30,10 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 | 3 | `F-M01` | POST | `/api/v1/auth/logout` | 현재 `refreshToken`으로 활성 로그인 종료 → 204 | `users` |
 | 4 | `F-M01` | GET | `/api/v1/users/me` | `id`, `provider`(`KAKAO\|GOOGLE`), `petType`(`CAT\|DOG`); 선택 전 `petType: null` | `users` |
 | 5 | `F-M01` | DELETE | `/api/v1/users/me` | 지출 → 월 예산 → 카테고리 목표 → 사용자 순으로 한 트랜잭션에서 탈퇴 → 204 | 4개 테이블 |
-| 6 | `F-M02` | PUT | `/api/v1/users/me/pet` | `petType: CAT\|DOG` 선택·변경 → 갱신된 내 정보. 생략·`null`·그 밖의 값(대소문자 구분)은 400 `INVALID_REQUEST`(`petType`) | `users` |
+| 6 | `F-M02` | PUT | `/api/v1/users/me/pet` | `petType: CAT\|DOG` 선택·변경 → 갱신된 내 정보. 생략·`null`·그 밖의 값(대소문자 구분)은 400 `INVALID_REQUEST`(`petType`, `CAT 또는 DOG만 허용합니다.`), 문자열이 아니면 `형식이 올바르지 않습니다.` | `users` |
 | 7 | `F-M06` | GET | `/api/v1/home` | 현재 월의 `month`, `petType`, `petState`, `budgetAmount`, `spentAmount`, `usagePercent`, `budgetBalanceAmount` | `users`, `expenses`, `monthly_budgets` |
 | 8 | `F-M04` | GET | `/api/v1/months/{month}/budget` | 해당 월 `{month, amount}`; 미설정이면 `amount: null`. 2000-01~현재 월 밖·형식 오류는 400 `month` | `monthly_budgets` |
-| 9 | `F-M04` | PUT | `/api/v1/months/{month}/budget` | 2000-01~현재 월을 `{amount}`로 생성·변경 → `{month, amount}`, 항상 200. 미래 월은 400 `month` | `monthly_budgets` |
+| 9 | `F-M04` | PUT | `/api/v1/months/{month}/budget` | 2000-01~현재 월을 `{amount}`로 생성·변경 → `{month, amount}`, 항상 200. 본문 `amount` 검증(1~100000000 정수)이 `month`보다 먼저다. 미래 월은 400 `month` | `monthly_budgets` |
 | 10 | `F-M03` | POST | `/api/v1/expenses` | `amount`, `expenseDate`, 선택 `category`·`memo` → 지출 응답, 201. 그 월 1,000건이면 409 `MONTHLY_EXPENSE_LIMIT_EXCEEDED` | `expenses` |
 | 11 | `F-M03` | GET | `/api/v1/months/{month}/expenses` | `limit`, `cursor`, 선택 `category`·`date` → `items`, `nextCursor` | `expenses` |
 | 12 | `F-M03` | GET | `/api/v1/expenses/{expenseId}` | 본인 지출 단건·수정 초기값 → 지출 응답 | `expenses` |
@@ -42,7 +42,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 | 15 | `F-M05` | GET | `/api/v1/months/{month}/stats` | 월별 숫자 통계와 카테고리 금액·건수·비중, 펫 필드 없음 | `expenses`, `monthly_budgets` |
 | 16 | `F-M07` | GET | `/api/v1/insights` | `today`, `weekly`(`thisWeek`, `lastWeek`, `categories`), `forecast`(`status`, `dailyAverageAmount`, `exhaustionDate`). 펫·예산 없어도 200 | `expenses`, `monthly_budgets` |
 | 17 | `F-M08` | GET | `/api/v1/months/{month}/category-goals` | `month`, `budgetAmount`, `goalTotalAmount`, `goalsExceedBudget`, `goals`(`category`, `goalAmount`, `spentAmount`, `remainingAmount`, `usagePercent`). 목표·예산 없어도 200 | `category_goals`, `expenses`, `monthly_budgets` |
-| 18 | `F-M08` | PUT | `/api/v1/months/{month}/category-goals/{category}` | `{amount}` → `{month, category, amount}`, 항상 200. 예산 없음 409 `BUDGET_REQUIRED`, 합 초과 409 `CATEGORY_GOALS_EXCEED_BUDGET` | `category_goals`, `monthly_budgets` |
+| 18 | `F-M08` | PUT | `/api/v1/months/{month}/category-goals/{category}` | `{amount}` → `{month, category, amount}`, 항상 200. 검사 순서 본문 → `month` → `category` → 예산. 예산 없음 409 `BUDGET_REQUIRED`, 합 초과 409 `CATEGORY_GOALS_EXCEED_BUDGET` | `category_goals`, `monthly_budgets` |
 | 19 | `F-M08` | DELETE | `/api/v1/months/{month}/category-goals/{category}` | 본인 목표 삭제 → 204, 없어도 204 | `category_goals` |
 | 20 | `F-M09` | GET | `/api/v1/months/{month}/daily-totals` | `month`, `days`(`date`, `spentAmount`, `expenseCount`), 지출 있는 날만 `date` 오름차순, 없으면 `[]`. 합은 통계와 같음 | `expenses` |
 

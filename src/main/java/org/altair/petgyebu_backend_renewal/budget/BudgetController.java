@@ -1,5 +1,6 @@
 package org.altair.petgyebu_backend_renewal.budget;
 
+import jakarta.validation.Valid;
 import org.altair.petgyebu_backend_renewal.auth.AuthUser;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -8,7 +9,6 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import tools.jackson.databind.JsonNode;
 
 @RestController
 @RequestMapping("/api/v1/months/{month}/budget")
@@ -31,7 +31,7 @@ public class BudgetController {
 
     @PutMapping
     BudgetResponse put(@AuthenticationPrincipal AuthUser authUser, @PathVariable String month,
-            @RequestBody JsonNode body) {
-        return new BudgetResponse(month, budgetService.put(authUser.userId(), month, body).amount());
+            @Valid @RequestBody BudgetRequest request) {
+        return new BudgetResponse(month, budgetService.put(authUser.userId(), month, request).amount());
     }
 }

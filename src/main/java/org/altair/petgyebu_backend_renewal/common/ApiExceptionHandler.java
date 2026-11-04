@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
+import tools.jackson.core.JacksonException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
@@ -44,6 +45,19 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(HttpMessageNotReadableException.class)
     ResponseEntity<ApiError> handle(HttpMessageNotReadableException e) {
+        // 값의 JSON 타입이 틀린 경우(경로가 있는 Jackson 예외)는 해당 필드의 형식 오류로 알린다.
+        for (Throwable t = e.getCause(); t != null; t = t.getCause()) {
+            if (t instanceof JacksonException je && !je.getPath().isEmpty()) {
+                String name = je.getPath().get(0).getPropertyName();
+                if (name != null) {
+                    return ResponseEntity.badRequest().body(new ApiError("INVALID_REQUEST", "요청 값이 올바르지 않습니다.",
+                            List.of(new ApiError.FieldError(name, "형식이 올바르지 않습니다."))));
+                }
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(new ApiError("INVALID_REQUEST", "요청 본문을 읽을 수 없습니다.", null));
     }

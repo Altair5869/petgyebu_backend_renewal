@@ -1,5 +1,6 @@
 package org.altair.petgyebu_backend_renewal.expense;
 
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import org.altair.petgyebu_backend_renewal.auth.AuthUser;
@@ -43,8 +44,8 @@ public class ExpenseController {
     @PostMapping("/expenses")
     ResponseEntity<ExpenseResponse> create(@AuthenticationPrincipal AuthUser authUser,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-            @RequestBody JsonNode body) {
-        ExpenseService.CreateResult result = expenseService.create(authUser.userId(), body, idempotencyKey);
+            @Valid @RequestBody ExpenseRequest request) {
+        ExpenseService.CreateResult result = expenseService.create(authUser.userId(), request, idempotencyKey);
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(ExpenseResponse.of(result.expense()));
     }

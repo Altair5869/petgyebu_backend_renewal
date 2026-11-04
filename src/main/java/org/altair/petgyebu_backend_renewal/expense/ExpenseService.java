@@ -43,11 +43,9 @@ public class ExpenseService {
     public record CreateResult(Expense expense, boolean created) {
     }
 
-    // 생략과 명시적 null을 구분해야 하므로 ExpenseRequest/ExpensePatch가 JsonNode 본문을 직접 파싱한다.
-    // idempotencyKey는 선택이다. 본문 검증이 키 조회보다 먼저다.
+    // request는 컨트롤러에서 검증을 마쳤다. idempotencyKey는 선택이고, 본문 검증이 키 검증·조회보다 먼저다.
     // 일부러 @Transactional을 쓰지 않는다. 키 충돌로 insert가 실패해도 다음 조회는 새 트랜잭션이다.
-    public CreateResult create(long userId, JsonNode body, String idempotencyKey) {
-        ExpenseRequest request = ExpenseRequest.from(body, seoulToday());
+    public CreateResult create(long userId, ExpenseRequest request, String idempotencyKey) {
         UUID key = idempotencyKey == null ? null : ExpenseFields.idempotencyKey(idempotencyKey);
         if (key != null) {
             Optional<Expense> existing = expenses.findByUserIdAndIdempotencyKey(userId, key);
@@ -55,11 +53,12 @@ public class ExpenseService {
                 return replay(existing.get(), request);
             }
         }
-        requireMonthHasRoom(userId, request.expenseDate());
+        LocalDate expenseDate = request.date();
+        requireMonthHasRoom(userId, expenseDate);
         OffsetDateTime now = OffsetDateTime.now(clock);
         try {
-            return new CreateResult(expenses.save(new Expense(null, userId, request.amount(), request.expenseDate(),
-                    request.category(), request.memo(), now, now, key)), true);
+            return new CreateResult(expenses.save(new Expense(null, userId, request.amount(), expenseDate,
+                    request.categoryOrDefault(), request.normalizedMemo(), now, now, key)), true);
         } catch (DataIntegrityViolationException e) {
             // 인증 직후 동시 탈퇴로 사용자 행이 사라졌다면 /users/me와 같이 401로 응답한다.
             if (DbErrors.isForeignKeyViolation(e)) {

@@ -22,7 +22,7 @@ public record Expense(
 
     // 멱등 재요청 비교: 요청이 만드는 내용과 같은지.
     boolean sameContentAs(ExpenseRequest request) {
-        return amount == request.amount() && expenseDate.equals(request.expenseDate())
-                && category == request.category() && Objects.equals(memo, request.memo());
+        return amount == request.amount() && expenseDate.equals(request.date())
+                && category == request.categoryOrDefault() && Objects.equals(memo, request.normalizedMemo());
     }
 }

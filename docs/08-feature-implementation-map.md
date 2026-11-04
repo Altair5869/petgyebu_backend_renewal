@@ -15,7 +15,7 @@
 | `F-M04` 월 예산 | 2 | 월별 예산 조회, 2000-01~현재 월 설정·변경(과거 월 정정 포함), 동시 PUT의 단일 upsert | `monthly_budgets` |
 | `F-M06` 현재 홈 | 2 | 현재 월의 지출 합계·예산 잔액·사용률·펫 상태 계산, 미설정 온보딩 오류 | `users`, `expenses`, `monthly_budgets` |
 | `F-M05` 월별 통계 | 3 | 현재·과거 월 총액·건수·카테고리 금액·건수·비중 계산. 과거 월 펫 응답 없음 | `expenses`, `monthly_budgets` |
-| `F-M08` 카테고리 목표 | 후속 | 월별 카테고리 목표 설정·변경·삭제, 목표 합 ≤ 예산(예산 행 잠금 후 검사), 사용 현황 조회, 월 지출 목록의 카테고리 필터 | `category_goals`, `expenses`, `monthly_budgets` |
+| `F-M08` 카테고리 목표 | 후속 | 월별 카테고리 목표 설정·변경·삭제, 목표 합 ≤ 예산(잠금 없는 입력 가드, 동시 PUT 초과는 `goalsExceedBudget`으로 표시), 사용 현황 조회, 월 지출 목록의 카테고리 필터 | `category_goals`, `expenses`, `monthly_budgets` |
 | `F-M09` 달력 보기 | 후속 | 월별 날짜별 지출 합계(도메인 객체가 `findDayAmounts` 행으로 계산), 월 지출 목록의 `date` 필터(조회 범위를 그날로 좁힘) | `expenses` |
 | `F-M07` 소비 인사이트 | 후속 | 이번 주·지난주 같은 요일 범위 카테고리 비교, 현재 월 예산 소진 예측. 펫·예산 없이도 200 | `expenses`, `monthly_budgets` |
 

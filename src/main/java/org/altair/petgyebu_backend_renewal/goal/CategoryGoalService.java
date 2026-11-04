@@ -47,7 +47,8 @@ public class CategoryGoalService {
         return new MonthGoals(month, budgetAmount, monthGoals, monthGoals.progress(spending));
     }
 
-    @Transactional
+    // 잠금 없이 예산·목표를 읽고 검사한 뒤 upsert한다. 동시 PUT이 함께 통과하면 합이 예산을 넘을 수 있고,
+    // 그 상태는 예산을 낮춘 경우와 같이 GET의 goalsExceedBudget으로 드러난다.
     public CategoryGoal put(long userId, String monthText, String categoryText, JsonNode body) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);
         Category category = Category.parse(categoryText);
@@ -73,9 +74,8 @@ public class CategoryGoalService {
         goals.delete(userId, month.atDay(1), category.name());
     }
 
-    // 예산 행을 잠가 같은 사용자·월의 목표 저장을 하나씩 처리한다.
     private MonthlyBudget requireMonthBudget(long userId, YearMonth month) {
-        return budgets.findForUpdate(userId, month.atDay(1)).orElseThrow(ApiException::monthBudgetRequired);
+        return budgets.find(userId, month.atDay(1)).orElseThrow(ApiException::monthBudgetRequired);
     }
 
     // 합이 예산과 같은 것은 허용한다. 바꾸는 카테고리의 기존 금액은 합에서 뺀다.

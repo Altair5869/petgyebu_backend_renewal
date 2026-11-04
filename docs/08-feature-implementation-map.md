@@ -73,7 +73,7 @@ API 계층은 인증된 사용자와 입력을 확인하고, 월 집계 계층�
 
 ### 공통 실패 응답
 
-공통 실패 응답은 `code`, `message`를 가진다. 입력 오류에는 틀린 필드를 모두 `fields[]`로 더한다(필드 하나가 여러 번 나올 수 있고 순서는 보장하지 않는다). JSON 타입이 틀린 값은 그 필드의 `형식이 올바르지 않습니다.`, 읽을 수 없는 본문은 `fields` 없는 `요청 본문을 읽을 수 없습니다.`다. 본문 검증은 경로 변수 검증·지출 존재 404·예산 존재 409보다 먼저다. 잘못된 입력·커서는 400, 미인증·무효 토큰은 401, 없거나 다른 사용자의 지출 ID는 구분 없이 404 `EXPENSE_NOT_FOUND`다. 홈의 온보딩 미완료는 위의 409 코드다. 사용자별 지출 날짜의 월마다 지출은 최대 1,000건이며 넘으면 409 `MONTHLY_EXPENSE_LIMIT_EXCEEDED`다(같은 `Idempotency-Key` 재시도는 허용, 같은 월 안의 수정은 검사하지 않음). 없는 경로(인증 후)는 404 `NOT_FOUND`, 지원하지 않는 메서드는 405 `METHOD_NOT_ALLOWED`(`Allow` 헤더 포함), 지원하지 않는 Content-Type은 415 `UNSUPPORTED_MEDIA_TYPE`, 처리되지 않은 서버 오류는 500 `INTERNAL_ERROR`이며 내부 오류 내용은 응답에 넣지 않는다. 사용자 데이터 조회와 변경은 인증된 사용자 범위로 제한한다. 인증 오류 코드는 `INVALID_REQUEST`(400), `SOCIAL_LOGIN_FAILED`(401), `UNAUTHORIZED`(401), `SOCIAL_LOGIN_UNAVAILABLE`(503)이다.
+공통 실패 응답은 `code`, `message`를 가진다. 입력 오류에는 틀린 필드를 모두 `fields[]`로 더한다(필드 하나가 여러 번 나올 수 있고 순서는 보장하지 않는다). JSON 타입이 틀린 값은 그 필드의 `형식이 올바르지 않습니다.`, 읽을 수 없는 본문은 `fields` 없는 `요청 본문을 읽을 수 없습니다.`다. 본문 검증은 `month`·`category` 경로 검사·지출 존재 404·예산 존재 409보다 먼저다(`long expenseId` 경로 변수의 타입 오류는 본문보다 먼저 나온다). 잘못된 입력·커서는 400, 미인증·무효 토큰은 401, 없거나 다른 사용자의 지출 ID는 구분 없이 404 `EXPENSE_NOT_FOUND`다. 홈의 온보딩 미완료는 위의 409 코드다. 사용자별 지출 날짜의 월마다 지출은 최대 1,000건이며 넘으면 409 `MONTHLY_EXPENSE_LIMIT_EXCEEDED`다(같은 `Idempotency-Key` 재시도는 허용, 같은 월 안의 수정은 검사하지 않음). 없는 경로(인증 후)는 404 `NOT_FOUND`, 지원하지 않는 메서드는 405 `METHOD_NOT_ALLOWED`(`Allow` 헤더 포함), 지원하지 않는 Content-Type은 415 `UNSUPPORTED_MEDIA_TYPE`, 처리되지 않은 서버 오류는 500 `INTERNAL_ERROR`이며 내부 오류 내용은 응답에 넣지 않는다. 사용자 데이터 조회와 변경은 인증된 사용자 범위로 제한한다. 인증 오류 코드는 `INVALID_REQUEST`(400), `SOCIAL_LOGIN_FAILED`(401), `UNAUTHORIZED`(401), `SOCIAL_LOGIN_UNAVAILABLE`(503)이다.
 
 ## 4. 스프린트별 API 수와 데이터
 

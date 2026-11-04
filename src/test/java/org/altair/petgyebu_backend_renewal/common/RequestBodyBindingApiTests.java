@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import com.jayway.jsonpath.JsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -95,5 +96,35 @@ class RequestBodyBindingApiTests {
         Throwable t = catchThrowable(() -> mapper.readValue("{\"a\":9223372036854775808}", N.class));
         assertThat(t).isInstanceOf(tools.jackson.core.JacksonException.class);
         assertThat(((tools.jackson.core.JacksonException) t).getPath().get(0).getPropertyName()).isEqualTo("a");
+    }
+
+    private String token() throws Exception {
+        String body = mvc.perform(post("/api/v1/auth/login/kakao").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"credential\":\"ok:hostile\"}"))
+                .andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        return JsonPath.read(body, "$.accessToken");
+    }
+
+    @Test
+    void excessivelyNestedBodyIs400NotServerError() throws Exception {
+        String body = "{\"x\":" + "[".repeat(5000) + "}";
+        mvc.perform(post("/api/v1/expenses").header("Authorization", "Bearer " + token())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("요청 본문을 읽을 수 없습니다."))
+                .andExpect(jsonPath("$.fields").doesNotExist());
+    }
+
+    @Test
+    void hugeIntegerLiteralIs400NotServerError() throws Exception {
+        String body = "{\"amount\":" + "9".repeat(2000) + ",\"expenseDate\":\"2026-10-13\"}";
+        mvc.perform(post("/api/v1/expenses").header("Authorization", "Bearer " + token())
+                        .contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("요청 본문을 읽을 수 없습니다."))
+                .andExpect(jsonPath("$.fields").doesNotExist());
     }
 }

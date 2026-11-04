@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import tools.jackson.databind.JsonNode;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -66,8 +65,8 @@ public class ExpenseController {
 
     @PatchMapping("/expenses/{expenseId}")
     ExpenseResponse update(@AuthenticationPrincipal AuthUser authUser, @PathVariable long expenseId,
-            @RequestBody JsonNode body) {
-        return ExpenseResponse.of(expenseService.update(authUser.userId(), expenseId, body));
+            @Valid @RequestBody ExpensePatch patch) {
+        return ExpenseResponse.of(expenseService.update(authUser.userId(), expenseId, patch));
     }
 
     @DeleteMapping("/expenses/{expenseId}")

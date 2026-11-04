@@ -5,7 +5,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
-import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
@@ -14,16 +13,13 @@ import java.util.UUID;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.common.DbErrors;
 import org.altair.petgyebu_backend_renewal.common.Months;
-import org.altair.petgyebu_backend_renewal.common.RequestBodies;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.JsonNode;
 
 @Service
 public class ExpenseService {
 
-    static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     static final int DEFAULT_LIMIT = 20;
     static final int MAX_LIMIT = 50;
     // 사용자별 expenseDate 월의 지출 건수 상한. 월 화면들이 그 달 행을 모두 메모리로 읽으므로 한 사용자의 비용을 묶는다.
@@ -98,11 +94,10 @@ public class ExpenseService {
     }
 
     @Transactional
-    public Expense update(long userId, long id, JsonNode body) {
-        RequestBodies.requireObject(body);
+    public Expense update(long userId, long id, ExpensePatch patch) {
         // 잠금 없이 읽으면 그사이 커밋된 다른 PATCH의 변경을 옛 값으로 덮는다. 커밋까지 행을 잠근다.
         Expense current = expenses.findByIdAndUserIdForUpdate(id, userId).orElseThrow(ApiException::expenseNotFound);
-        Expense updated = ExpensePatch.from(body, seoulToday()).applyTo(current, OffsetDateTime.now(clock));
+        Expense updated = patch.applyTo(current, OffsetDateTime.now(clock));
         // 같은 달 안의 수정은 건수가 늘지 않으므로 상한을 보지 않는다.
         if (!YearMonth.from(updated.expenseDate()).equals(YearMonth.from(current.expenseDate()))) {
             requireMonthHasRoom(userId, updated.expenseDate());
@@ -194,9 +189,5 @@ public class ExpenseService {
             }
             return cursor;
         }
-    }
-
-    private LocalDate seoulToday() {
-        return LocalDate.ofInstant(clock.instant(), SEOUL);
     }
 }

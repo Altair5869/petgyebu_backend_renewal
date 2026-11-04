@@ -277,9 +277,15 @@ class ExpenseApiTests {
         String a = accessToken("a");
         create(a, body(3000, "2026-10-12", "HEALTH", "병원"));
 
-        expectInvalid(update(a, 1, "{\"amount\":null}"), "amount");
-        expectInvalid(update(a, 1, "{\"expenseDate\":null}"), "expenseDate");
-        expectInvalid(update(a, 1, "{\"category\":null}"), "category");
+        String nullAmount = update(a, 1, "{\"amount\":null}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields", hasSize(1))).andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(nullAmount, "amount")).containsOnly("1 이상 100000000 이하의 정수여야 합니다.");
+        String nullDate = update(a, 1, "{\"expenseDate\":null}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields", hasSize(1))).andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(nullDate, "expenseDate")).containsOnly("YYYY-MM-DD 형식이어야 합니다.");
+        String nullCategory = update(a, 1, "{\"category\":null}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields", hasSize(1))).andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(nullCategory, "category")).containsOnly("허용되지 않는 카테고리입니다.");
         expectInvalid(update(a, 1, "{\"amount\":0}"), "amount");
         expectInvalid(update(a, 1, "{\"expenseDate\":\"2026-10-14\"}"), "expenseDate");
         expectInvalid(update(a, 1, "{\"category\":\"COFFEE\"}"), "category");
@@ -649,13 +655,45 @@ class ExpenseApiTests {
     }
 
     @Test
-    void patchChecksBodyShapeThenExistenceThenFields() throws Exception {
+    void patchChecksBodyBeforeExistence() throws Exception {
         String a = accessToken("a");
-        update(a, 99, "[]").andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
-        expectNotFound(update(a, 99, "{\"amount\":0}"));
+        update(a, 99, "[]").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("요청 본문을 읽을 수 없습니다."))
+                .andExpect(jsonPath("$.fields").doesNotExist());
+        expectInvalid(update(a, 99, "{\"amount\":0}"), "amount");
+        expectNotFound(update(a, 99, "{\"amount\":1}"));
         create(a, body(3000, "2026-10-12", "HEALTH", null));
-        expectInvalid(update(a, 1, "{\"amount\":0,\"category\":\"X\"}"), "amount");
-        expectInvalid(update(a, 1, "{\"expenseDate\":\"2026-10-14\",\"memo\":5}"), "expenseDate");
+        String json = update(a, 1, "{\"amount\":0,\"category\":\"X\"}").andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(json, "amount")).containsOnly("1 이상 100000000 이하의 정수여야 합니다.");
+        assertThat(messagesOf(json, "category")).containsOnly("허용되지 않는 카테고리입니다.");
+        String both = update(a, 1, "{\"expenseDate\":\"2026-10-14\",\"memo\":\"\\u0000\"}")
+                .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(both, "expenseDate")).containsOnly("2000-01-01부터 오늘까지만 허용합니다.");
+        assertThat(messagesOf(both, "memo")).containsOnly("허용되지 않는 문자가 있습니다.");
+    }
+
+    @Test
+    void patchRejectsLooseValues() throws Exception {
+        String a = accessToken("a");
+        String typeError = "형식이 올바르지 않습니다.";
+        create(a, body(3000, "2026-10-12", "HEALTH", "병원"));
+
+        for (String json : List.of("{\"amount\":\"5000\"}", "{\"amount\":1.5}", "{\"amount\":true}",
+                "{\"memo\":1234}", "{\"expenseDate\":20261012}", "{\"category\":1}")) {
+            String field = json.substring(2, json.indexOf('"', 2));
+            update(a, 1, json).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                    .andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."))
+                    .andExpect(jsonPath("$.fields", hasSize(1)))
+                    .andExpect(jsonPath("$.fields[0].field").value(field))
+                    .andExpect(jsonPath("$.fields[0].message").value(typeError));
+        }
+        getOne(a, 1)
+                .andExpect(jsonPath("$.amount").value(3000))
+                .andExpect(jsonPath("$.memo").value("병원"));
+        update(a, 1, "{\"memo\":\"1234\"}").andExpect(status().isOk()).andExpect(jsonPath("$.memo").value("1234"));
     }
 
     // PATCH는 보낸 필드만 합친 뒤 모든 열을 쓰므로, 잠금 없이 읽으면 동시에 커밋된 다른 열 변경을 옛 값으로 덮는다.

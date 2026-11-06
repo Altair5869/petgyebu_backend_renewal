@@ -16,4 +16,12 @@ public record User(
         UUID activeSessionId,
         String refreshTokenHash,
         OffsetDateTime refreshTokenExpiresAt) {
+
+    // 로그·예외 메시지·테스트 실패 출력에 소셜 식별자와 세션 값이 남지 않도록 뺀다.
+    @Override
+    public String toString() {
+        return "User[id=" + id + ", provider=" + provider + ", petType=" + petType
+                + ", createdAt=" + createdAt + ", lastLoginTime=" + lastLoginTime
+                + ", refreshTokenExpiresAt=" + refreshTokenExpiresAt + "]";
+    }
 }

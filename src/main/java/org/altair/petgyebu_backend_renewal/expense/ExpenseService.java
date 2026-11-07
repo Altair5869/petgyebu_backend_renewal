@@ -15,7 +15,6 @@ import org.altair.petgyebu_backend_renewal.common.DbErrors;
 import org.altair.petgyebu_backend_renewal.common.Months;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class ExpenseService {
@@ -93,20 +92,21 @@ public class ExpenseService {
         return expenses.findByIdAndUserId(id, userId).orElseThrow(ApiException::expenseNotFound);
     }
 
-    @Transactional
+    // 보낸 열만 한 UPDATE 문장으로 바꾸고 저장된 행을 돌려준다. 행을 미리 읽어 합치지 않으므로 잠금이 필요 없다.
     public Expense update(long userId, long id, ExpensePatch patch) {
-        // 잠금 없이 읽으면 그사이 커밋된 다른 PATCH의 변경을 옛 값으로 덮는다. 커밋까지 행을 잠근다.
-        Expense current = expenses.findByIdAndUserIdForUpdate(id, userId).orElseThrow(ApiException::expenseNotFound);
-        Expense updated = patch.applyTo(current, OffsetDateTime.now(clock));
-        // 같은 달 안의 수정은 건수가 늘지 않으므로 상한을 보지 않는다.
-        if (!YearMonth.from(updated.expenseDate()).equals(YearMonth.from(current.expenseDate()))) {
-            requireMonthHasRoom(userId, updated.expenseDate());
+        LocalDate newDate = patch.newDate();
+        if (newDate != null) {
+            // 다른 월로 옮길 때만 상한을 본다(같은 월 안의 수정은 건수가 늘지 않는다).
+            // 생성과 같이 잠그지 않고 확인하므로, 그사이 다른 PATCH가 날짜를 바꾸면 상한이 근사치가 될 수 있다.
+            Expense current = get(userId, id);
+            if (!YearMonth.from(newDate).equals(YearMonth.from(current.expenseDate()))) {
+                requireMonthHasRoom(userId, newDate);
+            }
         }
-        if (expenses.update(id, userId, updated.amount(), updated.expenseDate(), updated.category().name(),
-                updated.memo(), updated.updatedAt()) == 0) {
-            throw ApiException.expenseNotFound();
-        }
-        return updated;
+        return expenses.update(id, userId, patch.amount().isPresent(), patch.amount().orElse(null),
+                        patch.expenseDate().isPresent(), newDate, patch.category().isPresent(), patch.newCategory(),
+                        patch.memo().isPresent(), patch.newMemo(), OffsetDateTime.now(clock))
+                .orElseThrow(ApiException::expenseNotFound);
     }
 
     public void delete(long userId, long id) {

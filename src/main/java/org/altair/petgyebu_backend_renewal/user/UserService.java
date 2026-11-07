@@ -10,7 +10,6 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.TransactionTemplate;
-import tools.jackson.databind.JsonNode;
 
 @Service
 public class UserService {
@@ -62,8 +61,7 @@ public class UserService {
 
     // users.pet_type만 바꾼다. 지출·예산은 건드리지 않는다. 대소문자를 구분하고 null로 되돌리지 않는다.
     @Transactional
-    public User selectPet(long userId, JsonNode body) {
-        PetRequest request = PetRequest.from(body);
+    public User selectPet(long userId, PetRequest request) {
         validatePetType(request.petType());
         if (users.updatePetType(userId, request.petType()) == 0) {
             throw ApiException.unauthorized();

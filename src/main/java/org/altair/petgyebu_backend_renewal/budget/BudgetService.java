@@ -9,7 +9,6 @@ import org.altair.petgyebu_backend_renewal.common.DbErrors;
 import org.altair.petgyebu_backend_renewal.common.Months;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.JsonNode;
 
 @Service
 public class BudgetService {
@@ -28,9 +27,8 @@ public class BudgetService {
     }
 
     // 2000-01부터 현재 월까지 설정·변경한다(과거 월 정정 포함). 새 달 예산을 자동으로 만들지 않는다.
-    public MonthlyBudget put(long userId, String monthText, JsonNode body) {
+    public MonthlyBudget put(long userId, String monthText, BudgetRequest request) {
         YearMonth month = Months.parsePastOrCurrent(monthText, clock);
-        BudgetRequest request = BudgetRequest.from(body);
         try {
             return budgets.upsert(userId, month.atDay(1), request.amount(), OffsetDateTime.now(clock));
         } catch (DataIntegrityViolationException e) {

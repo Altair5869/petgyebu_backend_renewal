@@ -5,7 +5,6 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.YearMonth;
-import java.time.ZoneId;
 import java.time.format.DateTimeParseException;
 import java.util.Base64;
 import java.util.List;
@@ -14,16 +13,13 @@ import java.util.UUID;
 import org.altair.petgyebu_backend_renewal.common.ApiException;
 import org.altair.petgyebu_backend_renewal.common.DbErrors;
 import org.altair.petgyebu_backend_renewal.common.Months;
-import org.altair.petgyebu_backend_renewal.common.RequestBodies;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import tools.jackson.databind.JsonNode;
 
 @Service
 public class ExpenseService {
 
-    static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     static final int DEFAULT_LIMIT = 20;
     static final int MAX_LIMIT = 50;
     // 사용자별 expenseDate 월의 지출 건수 상한. 월 화면들이 그 달 행을 모두 메모리로 읽으므로 한 사용자의 비용을 묶는다.
@@ -43,11 +39,9 @@ public class ExpenseService {
     public record CreateResult(Expense expense, boolean created) {
     }
 
-    // 생략과 명시적 null을 구분해야 하므로 ExpenseRequest/ExpensePatch가 JsonNode 본문을 직접 파싱한다.
-    // idempotencyKey는 선택이다. 본문 검증이 키 조회보다 먼저다.
+    // request는 컨트롤러에서 검증을 마쳤다. idempotencyKey는 선택이고, 본문 검증이 키 검증·조회보다 먼저다.
     // 일부러 @Transactional을 쓰지 않는다. 키 충돌로 insert가 실패해도 다음 조회는 새 트랜잭션이다.
-    public CreateResult create(long userId, JsonNode body, String idempotencyKey) {
-        ExpenseRequest request = ExpenseRequest.from(body, seoulToday());
+    public CreateResult create(long userId, ExpenseRequest request, String idempotencyKey) {
         UUID key = idempotencyKey == null ? null : ExpenseFields.idempotencyKey(idempotencyKey);
         if (key != null) {
             Optional<Expense> existing = expenses.findByUserIdAndIdempotencyKey(userId, key);
@@ -55,11 +49,12 @@ public class ExpenseService {
                 return replay(existing.get(), request);
             }
         }
-        requireMonthHasRoom(userId, request.expenseDate());
+        LocalDate expenseDate = request.date();
+        requireMonthHasRoom(userId, expenseDate);
         OffsetDateTime now = OffsetDateTime.now(clock);
         try {
-            return new CreateResult(expenses.save(new Expense(null, userId, request.amount(), request.expenseDate(),
-                    request.category(), request.memo(), now, now, key)), true);
+            return new CreateResult(expenses.save(new Expense(null, userId, request.amount(), expenseDate,
+                    request.categoryOrDefault(), request.normalizedMemo(), now, now, key)), true);
         } catch (DataIntegrityViolationException e) {
             // 인증 직후 동시 탈퇴로 사용자 행이 사라졌다면 /users/me와 같이 401로 응답한다.
             if (DbErrors.isForeignKeyViolation(e)) {
@@ -99,11 +94,10 @@ public class ExpenseService {
     }
 
     @Transactional
-    public Expense update(long userId, long id, JsonNode body) {
-        RequestBodies.requireObject(body);
+    public Expense update(long userId, long id, ExpensePatch patch) {
         // 잠금 없이 읽으면 그사이 커밋된 다른 PATCH의 변경을 옛 값으로 덮는다. 커밋까지 행을 잠근다.
         Expense current = expenses.findByIdAndUserIdForUpdate(id, userId).orElseThrow(ApiException::expenseNotFound);
-        Expense updated = ExpensePatch.from(body, seoulToday()).applyTo(current, OffsetDateTime.now(clock));
+        Expense updated = patch.applyTo(current, OffsetDateTime.now(clock));
         // 같은 달 안의 수정은 건수가 늘지 않으므로 상한을 보지 않는다.
         if (!YearMonth.from(updated.expenseDate()).equals(YearMonth.from(current.expenseDate()))) {
             requireMonthHasRoom(userId, updated.expenseDate());
@@ -195,9 +189,5 @@ public class ExpenseService {
             }
             return cursor;
         }
-    }
-
-    private LocalDate seoulToday() {
-        return LocalDate.ofInstant(clock.instant(), SEOUL);
     }
 }

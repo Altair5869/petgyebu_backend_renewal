@@ -1,5 +1,6 @@
 package org.altair.petgyebu_backend_renewal.expense;
 
+import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
 import org.altair.petgyebu_backend_renewal.auth.AuthUser;
@@ -17,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
-import tools.jackson.databind.JsonNode;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -43,8 +43,8 @@ public class ExpenseController {
     @PostMapping("/expenses")
     ResponseEntity<ExpenseResponse> create(@AuthenticationPrincipal AuthUser authUser,
             @RequestHeader(value = "Idempotency-Key", required = false) String idempotencyKey,
-            @RequestBody JsonNode body) {
-        ExpenseService.CreateResult result = expenseService.create(authUser.userId(), body, idempotencyKey);
+            @Valid @RequestBody ExpenseRequest request) {
+        ExpenseService.CreateResult result = expenseService.create(authUser.userId(), request, idempotencyKey);
         return ResponseEntity.status(result.created() ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(ExpenseResponse.of(result.expense()));
     }
@@ -65,8 +65,8 @@ public class ExpenseController {
 
     @PatchMapping("/expenses/{expenseId}")
     ExpenseResponse update(@AuthenticationPrincipal AuthUser authUser, @PathVariable long expenseId,
-            @RequestBody JsonNode body) {
-        return ExpenseResponse.of(expenseService.update(authUser.userId(), expenseId, body));
+            @Valid @RequestBody ExpensePatch patch) {
+        return ExpenseResponse.of(expenseService.update(authUser.userId(), expenseId, patch));
     }
 
     @DeleteMapping("/expenses/{expenseId}")

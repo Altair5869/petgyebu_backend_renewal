@@ -1,21 +1,23 @@
 package org.altair.petgyebu_backend_renewal.expense;
 
 import java.time.LocalDate;
-import org.altair.petgyebu_backend_renewal.common.RequestBodies;
-import tools.jackson.databind.JsonNode;
+import org.altair.petgyebu_backend_renewal.common.Amount;
 
-// 지출 생성 본문. 검증 순서(본문 → amount → expenseDate → category → memo)가 첫 오류 순서다.
-record ExpenseRequest(long amount, LocalDate expenseDate, Category category, String memo) {
+// 지출 생성 본문. 검증은 컨트롤러의 @Valid가 하고, 아래 접근자는 검증을 통과한 값을 정규화한다.
+record ExpenseRequest(@Amount Long amount, @ExpenseDate String expenseDate, @CategoryName String category,
+        @Memo String memo) {
 
-    static ExpenseRequest from(JsonNode body, LocalDate today) {
-        RequestBodies.requireObject(body);
-        long amount = RequestBodies.amount(body.get("amount"));
-        LocalDate expenseDate = ExpenseFields.expenseDate(body.get("expenseDate"), today);
-        JsonNode categoryNode = body.get("category");
-        Category category = categoryNode == null || categoryNode.isNull()
-                ? Category.OTHER
-                : ExpenseFields.category(categoryNode);
-        String memo = ExpenseFields.memo(body.get("memo"));
-        return new ExpenseRequest(amount, expenseDate, category, memo);
+    LocalDate date() {
+        return LocalDate.parse(expenseDate);
+    }
+
+    // 생략·null은 OTHER.
+    Category categoryOrDefault() {
+        return category == null ? Category.OTHER : Category.parse(category);
+    }
+
+    // 생략·null·공백만 있는 메모는 null.
+    String normalizedMemo() {
+        return memo == null || memo.isBlank() ? null : memo;
     }
 }

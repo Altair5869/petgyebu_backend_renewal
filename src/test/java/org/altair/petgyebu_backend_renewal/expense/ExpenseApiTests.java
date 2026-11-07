@@ -45,7 +45,6 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import tools.jackson.databind.node.JsonNodeFactory;
 
 // TestAuthConfig.START = 2026-10-13T00:00Z = 서울 2026-10-13 09:00
 @Testcontainers
@@ -278,9 +277,15 @@ class ExpenseApiTests {
         String a = accessToken("a");
         create(a, body(3000, "2026-10-12", "HEALTH", "병원"));
 
-        expectInvalid(update(a, 1, "{\"amount\":null}"), "amount");
-        expectInvalid(update(a, 1, "{\"expenseDate\":null}"), "expenseDate");
-        expectInvalid(update(a, 1, "{\"category\":null}"), "category");
+        String nullAmount = update(a, 1, "{\"amount\":null}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields", hasSize(1))).andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(nullAmount, "amount")).containsOnly("1 이상 100000000 이하의 정수여야 합니다.");
+        String nullDate = update(a, 1, "{\"expenseDate\":null}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields", hasSize(1))).andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(nullDate, "expenseDate")).containsOnly("YYYY-MM-DD 형식이어야 합니다.");
+        String nullCategory = update(a, 1, "{\"category\":null}").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields", hasSize(1))).andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(nullCategory, "category")).containsOnly("허용되지 않는 카테고리입니다.");
         expectInvalid(update(a, 1, "{\"amount\":0}"), "amount");
         expectInvalid(update(a, 1, "{\"expenseDate\":\"2026-10-14\"}"), "expenseDate");
         expectInvalid(update(a, 1, "{\"category\":\"COFFEE\"}"), "category");
@@ -572,8 +577,8 @@ class ExpenseApiTests {
         // 인증 통과 직후 동시 탈퇴로 사용자 행이 사라진 상황. HTTP는 인증에서 먼저 거절되므로 서비스를 직접 호출한다.
         jdbc.update("DELETE FROM users WHERE id = 1");
 
-        assertThatThrownBy(() -> expenseService.create(1, JsonNodeFactory.instance.objectNode()
-                        .put("amount", 1000).put("expenseDate", "2026-10-13"), null))
+        assertThatThrownBy(() -> expenseService.create(1,
+                        new ExpenseRequest(1000L, "2026-10-13", null, null), null))
                 .isInstanceOfSatisfying(ApiException.class, e -> {
                     assertThat(e.status().value()).isEqualTo(401);
                     assertThat(e.code()).isEqualTo("UNAUTHORIZED");
@@ -582,26 +587,113 @@ class ExpenseApiTests {
     }
 
     @Test
-    void createReportsFirstInvalidFieldInBodyOrder() throws Exception {
+    void createReportsAllInvalidFields() throws Exception {
         String a = accessToken("a");
-        expectInvalid(create(a, "{\"amount\":0,\"expenseDate\":\"x\",\"category\":\"X\",\"memo\":5}"), "amount");
-        expectInvalid(create(a, "{\"amount\":1,\"expenseDate\":\"2026-10-14\",\"category\":\"X\",\"memo\":5}"), "expenseDate");
-        expectInvalid(create(a, "{\"amount\":1,\"expenseDate\":\"2026-10-13\",\"category\":\"X\",\"memo\":5}"), "category");
+
+        String json = create(a, "{\"amount\":0,\"expenseDate\":\"x\",\"category\":\"X\",\"memo\":\"\\u0000\"}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(json, "amount")).containsOnly("1 이상 100000000 이하의 정수여야 합니다.");
+        assertThat(messagesOf(json, "expenseDate")).containsOnly("YYYY-MM-DD 형식이어야 합니다.");
+        assertThat(messagesOf(json, "category")).containsOnly("허용되지 않는 카테고리입니다.");
+        assertThat(messagesOf(json, "memo")).containsOnly("허용되지 않는 문자가 있습니다.");
+
+        // 날짜 범위와 메모 길이는 형식과 다른 문구다.
+        String range = create(a, "{\"amount\":1,\"expenseDate\":\"2026-10-14\",\"memo\":\"" + "a".repeat(101) + "\"}")
+                .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(range, "expenseDate")).containsOnly("2000-01-01부터 오늘까지만 허용합니다.");
+        assertThat(messagesOf(range, "memo")).containsOnly("최대 100자입니다.");
+
         // 잘못된 본문이 잘못된 Idempotency-Key보다 먼저다.
-        expectInvalid(mvc.perform(post("/api/v1/expenses").header("Authorization", "Bearer " + a)
+        String withBadKey = mvc.perform(post("/api/v1/expenses").header("Authorization", "Bearer " + a)
                 .header("Idempotency-Key", "bad").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"amount\":0,\"expenseDate\":\"2026-10-13\"}")), "amount");
+                .content("{\"amount\":0,\"expenseDate\":\"2026-10-13\"}"))
+                .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(withBadKey, "amount")).isNotEmpty();
+        assertThat(messagesOf(withBadKey, "Idempotency-Key")).isEmpty();
         assertThat(expenseCount()).isZero();
     }
 
+    // 필드 하나만 틀리면 fields 항목도 하나다. FIELD·TYPE_USE 둘에 선언한 제약이 중복 보고되지 않는지 고정한다.
     @Test
-    void patchChecksBodyShapeThenExistenceThenFields() throws Exception {
+    void singleInvalidFieldIsReportedOnce() throws Exception {
         String a = accessToken("a");
-        update(a, 99, "[]").andExpect(status().isBadRequest()).andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
-        expectNotFound(update(a, 99, "{\"amount\":0}"));
+
+        for (String json : List.of(
+                "{\"amount\":0,\"expenseDate\":\"2026-10-13\",\"category\":\"FOOD\",\"memo\":\"m\"}",
+                "{\"amount\":1,\"expenseDate\":\"x\",\"category\":\"FOOD\",\"memo\":\"m\"}",
+                "{\"amount\":1,\"expenseDate\":\"2026-10-13\",\"category\":\"X\",\"memo\":\"m\"}",
+                "{\"amount\":1,\"expenseDate\":\"2026-10-13\",\"category\":\"FOOD\",\"memo\":\"\\u0000\"}")) {
+            create(a, json).andExpect(status().isBadRequest()).andExpect(jsonPath("$.fields", hasSize(1)));
+        }
+    }
+
+    @Test
+    void createRejectsLooseValues() throws Exception {
+        String a = accessToken("a");
+        String typeError = "형식이 올바르지 않습니다.";
+
+        for (String amount : List.of("\"5000\"", "1.5", "true")) {
+            create(a, "{\"amount\":" + amount + ",\"expenseDate\":\"2026-10-13\"}")
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.fields", hasSize(1)))
+                    .andExpect(jsonPath("$.fields[0].field").value("amount"))
+                    .andExpect(jsonPath("$.fields[0].message").value(typeError));
+        }
+        create(a, "{\"amount\":1,\"expenseDate\":\"2026-10-13\",\"memo\":1234}")
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.fields", hasSize(1)))
+                .andExpect(jsonPath("$.fields[0].field").value("memo"))
+                .andExpect(jsonPath("$.fields[0].message").value(typeError));
+        assertThat(expenseCount()).isZero();
+
+        create(a, "{\"amount\":1,\"expenseDate\":\"2026-10-13\",\"memo\":\"1234\"}")
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.memo").value("1234"));
+    }
+
+    @Test
+    void patchChecksBodyBeforeExistence() throws Exception {
+        String a = accessToken("a");
+        update(a, 99, "[]").andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                .andExpect(jsonPath("$.message").value("요청 본문을 읽을 수 없습니다."))
+                .andExpect(jsonPath("$.fields").doesNotExist());
+        expectInvalid(update(a, 99, "{\"amount\":0}"), "amount");
+        expectNotFound(update(a, 99, "{\"amount\":1}"));
         create(a, body(3000, "2026-10-12", "HEALTH", null));
-        expectInvalid(update(a, 1, "{\"amount\":0,\"category\":\"X\"}"), "amount");
-        expectInvalid(update(a, 1, "{\"expenseDate\":\"2026-10-14\",\"memo\":5}"), "expenseDate");
+        String json = update(a, 1, "{\"amount\":0,\"category\":\"X\"}").andExpect(status().isBadRequest())
+                .andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(json, "amount")).containsOnly("1 이상 100000000 이하의 정수여야 합니다.");
+        assertThat(messagesOf(json, "category")).containsOnly("허용되지 않는 카테고리입니다.");
+        String both = update(a, 1, "{\"expenseDate\":\"2026-10-14\",\"memo\":\"\\u0000\"}")
+                .andExpect(status().isBadRequest()).andReturn().getResponse().getContentAsString();
+        assertThat(messagesOf(both, "expenseDate")).containsOnly("2000-01-01부터 오늘까지만 허용합니다.");
+        assertThat(messagesOf(both, "memo")).containsOnly("허용되지 않는 문자가 있습니다.");
+    }
+
+    @Test
+    void patchRejectsLooseValues() throws Exception {
+        String a = accessToken("a");
+        String typeError = "형식이 올바르지 않습니다.";
+        create(a, body(3000, "2026-10-12", "HEALTH", "병원"));
+
+        for (String json : List.of("{\"amount\":\"5000\"}", "{\"amount\":1.5}", "{\"amount\":true}",
+                "{\"memo\":1234}", "{\"expenseDate\":20261012}", "{\"category\":1}")) {
+            String field = json.substring(2, json.indexOf('"', 2));
+            update(a, 1, json).andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                    .andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."))
+                    .andExpect(jsonPath("$.fields", hasSize(1)))
+                    .andExpect(jsonPath("$.fields[0].field").value(field))
+                    .andExpect(jsonPath("$.fields[0].message").value(typeError));
+        }
+        getOne(a, 1)
+                .andExpect(jsonPath("$.amount").value(3000))
+                .andExpect(jsonPath("$.memo").value("병원"));
+        update(a, 1, "{\"memo\":\"1234\"}").andExpect(status().isOk()).andExpect(jsonPath("$.memo").value("1234"));
     }
 
     // PATCH는 보낸 필드만 합친 뒤 모든 열을 쓰므로, 잠금 없이 읽으면 동시에 커밋된 다른 열 변경을 옛 값으로 덮는다.
@@ -867,6 +959,10 @@ class ExpenseApiTests {
 
     private static ResultActions expectNullMemo(ResultActions result) throws Exception {
         return result.andExpect(jsonPath("$.memo").hasJsonPath()).andExpect(jsonPath("$.memo").isEmpty());
+    }
+
+    private static List<String> messagesOf(String json, String field) {
+        return JsonPath.read(json, "$.fields[?(@.field == '" + field + "')].message");
     }
 
     private static void expectInvalid(ResultActions result, String field) throws Exception {

@@ -36,7 +36,6 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
-import tools.jackson.databind.node.JsonNodeFactory;
 
 @Testcontainers
 @SpringBootTest
@@ -293,12 +292,20 @@ class UserApiTests {
         jdbc.update("UPDATE users SET pet_type = 'CAT' WHERE id = 1");
 
         for (String body : new String[] {"{}", "{\"petType\":null}", "{\"petType\":\"cat\"}",
-                "{\"petType\":\"BIRD\"}", "{\"petType\":\"\"}", "{\"petType\":0}",
+                "{\"petType\":\"BIRD\"}", "{\"petType\":\"\"}"}) {
+            selectPet(access, body)
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
+                    .andExpect(jsonPath("$.fields[0].field").value("petType"))
+                    .andExpect(jsonPath("$.fields[0].message").value("CAT 또는 DOG만 허용합니다."));
+        }
+        for (String body : new String[] {"{\"petType\":1}", "{\"petType\":0}", "{\"petType\":true}",
                 "{\"petType\":[\"CAT\"]}"}) {
             selectPet(access, body)
                     .andExpect(status().isBadRequest())
                     .andExpect(jsonPath("$.code").value("INVALID_REQUEST"))
-                    .andExpect(jsonPath("$.fields[0].field").value("petType"));
+                    .andExpect(jsonPath("$.fields[0].field").value("petType"))
+                    .andExpect(jsonPath("$.fields[0].message").value("형식이 올바르지 않습니다."));
         }
         for (String body : new String[] {"[]", "\"CAT\"", "{"}) {
             selectPet(access, body)
@@ -318,7 +325,7 @@ class UserApiTests {
 
     @Test
     void selectPetAfterRowVanishedIsUnauthorized() {
-        assertThatThrownBy(() -> userService.selectPet(99, JsonNodeFactory.instance.objectNode().put("petType", "CAT")))
+        assertThatThrownBy(() -> userService.selectPet(99, new PetRequest("CAT")))
                 .isInstanceOfSatisfying(ApiException.class,
                         e -> assertThat(e.code()).isEqualTo("UNAUTHORIZED"));
     }

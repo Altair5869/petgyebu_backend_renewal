@@ -1,7 +1,9 @@
 package org.altair.petgyebu_backend_renewal.common;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 
+import java.time.Duration;
 import org.junit.jupiter.api.Test;
 
 class LogMaskingConverterTests {
@@ -51,5 +53,16 @@ class LogMaskingConverterTests {
                 + " at org.altair.Foo.bar(Foo.java:12)";
 
         assertThat(LogMaskingConverter.mask(text)).isEqualTo(text);
+    }
+
+    // 로그는 요청 스레드에서 동기로 출력되므로, 입력값이 예외 메시지에 실린 긴 줄도 빨리 끝나야 한다.
+    @Test
+    void hostileLongLinesFinishQuickly() {
+        assertTimeoutPreemptively(Duration.ofSeconds(1), () -> {
+            LogMaskingConverter.mask("Key (a)=(".repeat(20_000));
+            LogMaskingConverter.mask("eyJ".repeat(60_000));
+            LogMaskingConverter.mask("Bearer ".repeat(30_000));
+            LogMaskingConverter.mask("1.".repeat(90_000));
+        });
     }
 }

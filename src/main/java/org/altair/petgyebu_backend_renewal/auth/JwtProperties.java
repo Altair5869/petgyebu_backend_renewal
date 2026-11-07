@@ -15,6 +15,12 @@ public record JwtProperties(String secret) {
         }
     }
 
+    // 서명 키가 로그·예외 메시지에 남지 않도록 값을 뺀다.
+    @Override
+    public String toString() {
+        return "JwtProperties[secret=***]";
+    }
+
     public SecretKey secretKey() {
         return new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), "HmacSHA256");
     }

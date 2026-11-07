@@ -8,13 +8,15 @@ import java.util.regex.Pattern;
 // 소셜 식별자·세션 UUID처럼 형태로 구분되지 않는 값은 여기서 잡을 수 없으므로 toString에서 막는다.
 public class LogMaskingConverter extends CompositeConverter<ILoggingEvent> {
 
-    private static final Pattern JWT = Pattern.compile("eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]*");
+    // 로그는 요청 스레드에서 동기로 출력된다. 긴 줄에서도 선형 시간에 끝나도록 시작 위치와 길이를 제한한다.
+    private static final Pattern JWT = Pattern.compile(
+            "(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]*");
     private static final Pattern BEARER = Pattern.compile("(?i)(bearer\\s+)[A-Za-z0-9._~+/=-]+");
     // TokenIssuer.newRefreshToken 형식: {userId}.{32바이트 base64url 43자}
     private static final Pattern REFRESH_TOKEN = Pattern.compile("\\b\\d+\\.[A-Za-z0-9_-]{43}(?![A-Za-z0-9_-])");
     // PostgreSQL 무결성 오류 상세: Key (컬럼)=(값) already exists / is not present / is still referenced
     private static final Pattern PG_KEY = Pattern.compile(
-            "(Key \\([^)]*\\)=\\().*?(\\) (?:already exists|is not present|is still referenced))");
+            "(Key \\([^)\\n]{0,200}\\)=\\()[^\\n]{0,500}?(\\) (?:already exists|is not present|is still referenced))");
     private static final Pattern PG_FAILING_ROW = Pattern.compile("(Failing row contains ).*");
 
     @Override

@@ -17,5 +17,7 @@ class TokenRecordsTests {
         assertThat(new AuthController.TokenResponse(ACCESS, REFRESH, 900).toString())
                 .doesNotContain(ACCESS).doesNotContain(REFRESH).contains("accessExpiresInSeconds=900");
         assertThat(new AuthService.Tokens(ACCESS, REFRESH).toString()).doesNotContain(ACCESS).doesNotContain(REFRESH);
+        String signingKey = "jwt-signing-key-at-least-32-bytes-long";
+        assertThat(new JwtProperties(signingKey).toString()).doesNotContain(signingKey);
     }
 }

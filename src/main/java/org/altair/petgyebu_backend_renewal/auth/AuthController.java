@@ -17,13 +17,30 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     // credential: 카카오는 SDK 액세스 토큰, 구글은 ID 토큰.
+    // 토큰 record는 로그·예외 메시지에 토큰 값이 남지 않도록 toString에서 값을 뺀다.
     record LoginRequest(@NotBlank @Size(max = 4096) String credential) {
+
+        @Override
+        public String toString() {
+            return "LoginRequest[credential=***]";
+        }
     }
 
     record RefreshTokenRequest(@NotBlank String refreshToken) {
+
+        @Override
+        public String toString() {
+            return "RefreshTokenRequest[refreshToken=***]";
+        }
     }
 
     record TokenResponse(String accessToken, String refreshToken, long accessExpiresInSeconds) {
+
+        @Override
+        public String toString() {
+            return "TokenResponse[accessToken=***, refreshToken=***, accessExpiresInSeconds="
+                    + accessExpiresInSeconds + "]";
+        }
 
         static TokenResponse of(AuthService.Tokens tokens) {
             return new TokenResponse(tokens.accessToken(), tokens.refreshToken(),

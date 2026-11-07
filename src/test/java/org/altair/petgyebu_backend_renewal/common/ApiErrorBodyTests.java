@@ -1,5 +1,6 @@
 package org.altair.petgyebu_backend_renewal.common;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -16,8 +17,11 @@ import org.altair.petgyebu_backend_renewal.support.TestAuthConfig;
 import org.altair.petgyebu_backend_renewal.support.TestFailingController;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
@@ -35,6 +39,7 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest
 @AutoConfigureMockMvc
 @Import(TestAuthConfig.class)
+@ExtendWith(OutputCaptureExtension.class)
 class ApiErrorBodyTests {
 
     @Container
@@ -98,6 +103,19 @@ class ApiErrorBodyTests {
                 .andExpect(jsonPath("$.message").value("일시적인 오류가 발생했습니다."))
                 .andExpect(content().string(not(containsString(TestFailingController.SECRET_MESSAGE))))
                 .andExpect(content().string(not(containsString("IllegalStateException"))));
+    }
+
+    @Test
+    void unhandledExceptionLogMasksTokensAndKeyValues(CapturedOutput output) throws Exception {
+        String a = accessToken("a");
+
+        expectCode(mvc.perform(get("/api/v1/test/fail-with-secrets").header("Authorization", "Bearer " + a)),
+                500, "INTERNAL_ERROR");
+
+        assertThat(output.getOut()).contains("Unhandled exception: GET /api/v1/test/fail-with-secrets")
+                .contains("token ***").contains("=(***) already exists")
+                .doesNotContain(TestFailingController.LEAKY_JWT)
+                .doesNotContain(TestFailingController.LEAKY_KEY_VALUE);
     }
 
     @Test

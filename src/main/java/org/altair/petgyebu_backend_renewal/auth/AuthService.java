@@ -13,6 +13,11 @@ import org.springframework.transaction.support.TransactionTemplate;
 public class AuthService {
 
     public record Tokens(String accessToken, String refreshToken) {
+
+        @Override
+        public String toString() {
+            return "Tokens[accessToken=***, refreshToken=***]";
+        }
     }
 
     private final SocialIdentityVerifier verifier;

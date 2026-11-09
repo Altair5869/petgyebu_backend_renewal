@@ -40,6 +40,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.testcontainers.junit.jupiter.Container;
@@ -696,7 +697,7 @@ class ExpenseApiTests {
         update(a, 1, "{\"memo\":\"1234\"}").andExpect(status().isOk()).andExpect(jsonPath("$.memo").value("1234"));
     }
 
-    // PATCH는 보낸 필드만 합친 뒤 모든 열을 쓰므로, 잠금 없이 읽으면 동시에 커밋된 다른 열 변경을 옛 값으로 덮는다.
+    // PATCH는 보낸 열만 쓰므로, 동시에 커밋된 다른 열 변경을 옛 값으로 덮지 않고 응답도 저장된 행을 보여 준다.
     @Test
     void concurrentPatchDoesNotOverwriteCommittedChange() throws Exception {
         String a = accessToken("a");
@@ -714,12 +715,15 @@ class ExpenseApiTests {
             try (PreparedStatement ps = other.prepareStatement("UPDATE expenses SET amount = 7000 WHERE id = 1")) {
                 assertThat(ps.executeUpdate()).isEqualTo(1);
             }
-            Future<Integer> patch = pool.submit(() -> update(a, 1, "{\"memo\":\"new\"}").andReturn().getResponse()
-                    .getStatus());
+            Future<MockHttpServletResponse> patch = pool.submit(() -> update(a, 1, "{\"memo\":\"new\"}")
+                    .andReturn().getResponse());
             awaitBlockedBy(otherPid);
             other.commit();
 
-            assertThat(patch.get(30, TimeUnit.SECONDS)).isEqualTo(200);
+            MockHttpServletResponse response = patch.get(30, TimeUnit.SECONDS);
+            assertThat(response.getStatus()).isEqualTo(200);
+            assertThat((Integer) JsonPath.read(response.getContentAsString(), "$.amount")).isEqualTo(7000);
+            assertThat((String) JsonPath.read(response.getContentAsString(), "$.memo")).isEqualTo("new");
         } finally {
             // 실패 경로에서도 PATCH가 끝난 뒤 다음 테스트로 넘어간다(other를 닫으면 롤백되어 잠금이 풀린다).
             pool.shutdown();

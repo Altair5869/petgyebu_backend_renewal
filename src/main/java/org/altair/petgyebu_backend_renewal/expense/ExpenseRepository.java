@@ -15,19 +15,22 @@ public interface ExpenseRepository extends Repository<Expense, Long> {
 
     Optional<Expense> findByIdAndUserId(long id, long userId);
 
-    // PATCH 전용. 보낸 필드만 합친 뒤 모든 열을 쓰므로 행을 잠가 읽어 동시 수정의 변경 유실을 막는다.
-    @Query("SELECT * FROM expenses WHERE id = :id AND user_id = :userId FOR UPDATE")
-    Optional<Expense> findByIdAndUserIdForUpdate(long id, long userId);
-
     Optional<Expense> findByUserIdAndIdempotencyKey(long userId, UUID idempotencyKey);
 
-    @Modifying
+    // PATCH 전용. set* 플래그가 true인 열만 바꾸고 나머지는 행의 최신 값을 그대로 둔다.
+    // 한 문장이라 잠금 없이도 동시 수정이 서로 다른 열의 변경을 옛 값으로 덮지 않는다. 행이 없으면 빈 값이다.
     @Query("""
             UPDATE expenses
-            SET amount = :amount, expense_date = :expenseDate, category = :category, memo = :memo, updated_at = :now
+            SET amount = CASE WHEN :setAmount THEN :amount ELSE amount END,
+                expense_date = CASE WHEN :setDate THEN :expenseDate ELSE expense_date END,
+                category = CASE WHEN :setCategory THEN :category ELSE category END,
+                memo = CASE WHEN :setMemo THEN :memo ELSE memo END,
+                updated_at = :now
             WHERE id = :id AND user_id = :userId
+            RETURNING *
             """)
-    int update(long id, long userId, long amount, LocalDate expenseDate, String category, String memo,
+    Optional<Expense> update(long id, long userId, boolean setAmount, Long amount, boolean setDate,
+            LocalDate expenseDate, boolean setCategory, String category, boolean setMemo, String memo,
             OffsetDateTime now);
 
     @Modifying
